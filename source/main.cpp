@@ -32,6 +32,10 @@
 #include <utils.hpp>
 #include <set>
 
+
+using namespace ult;
+
+
 // Overlay booleans
 static bool returningToMain = false;
 static bool returningToHiddenMain = false;
@@ -674,11 +678,14 @@ private:
         listItem->setValue(versionLabel, true);
 
         listItem->setClickListener([listItemRaw = listItem.get(), downloadUrl, targetPath, movePath](uint64_t keys) {
+            static bool executingCommands = false;
             if (runningInterpreter.load(std::memory_order_acquire)) {
                 return false;
             } else {
-                if (commandSuccess && movePath != LANG_PATH)
+                if (executingCommands && commandSuccess && movePath != LANG_PATH) {
                     triggerMenuReload = true;
+                }
+                executingCommands = false;
             }
 
             if (simulatedSelect && !simulatedSelectComplete) {
@@ -687,6 +694,7 @@ private:
             }
             std::vector<std::vector<std::string>> interpreterCommands;
             if (keys & KEY_A) {
+                executingCommands = true;
                 isDownloadCommand = true;
                 
                 interpreterCommands = {
@@ -846,7 +854,7 @@ public:
                         setIniFileValue(ULTRAHAND_CONFIG_INI_PATH, ULTRAHAND_PROJECT_NAME, DEFAULT_LANG_STR, defaultLangMode);
                         reloadMenu = reloadMenu2 = true;
                         parseLanguage(langFile);
-                        if (skipLang) reinitializeLangVars();
+                        if (skipLang && defaultLangMode == "en") reinitializeLangVars();
                         lastSelectedListItem->setValue(lastSelectedListItemFooter);
                         selectedListItem->setValue(defaultLangMode);
                         listItemRaw->setValue(CHECKMARK_SYMBOL);
@@ -903,12 +911,14 @@ public:
                 case SetSysProductModel_Copper: modelRev = "Copper│Tegra X1 (Erista)"; break;
                 default: modelRev = UNAVAILABLE_SELECTION.c_str(); break;
             }
+            ASSERT_FATAL(nifmInitialize(NifmServiceType_User)); // for local IP
             std::vector<std::vector<std::string>> tableData = {
                 {FIRMWARE, "", versionString},
                 {BOOTLOADER, "", hekateVersion.empty() ? "fusee" : "hekate " + hekateVersion},
                 {LOCAL_IP, "", getLocalIpAddress()}
             };
-            addTable(list, tableData, "", 161, 20, 28, 4);
+            nifmExit();
+            addTable(list, tableData, "", 163, 20, 28, 4);
             
             // Hardware and storage info
             tableData = {
@@ -920,13 +930,13 @@ public:
                 {"└ eMMC ", "", getStorageInfo("emmc")},
                 {"└ SD Card", "", getStorageInfo("sdmc")}
             };
-            addTable(list, tableData, "", 161, 20, 30, 4);
+            addTable(list, tableData, "", 163, 20, 30, 4);
             
             // CPU, GPU, and SOC info
             tableData = {
                 {"", "", "CPU      GPU      SOC"}
             };
-            addTable(list, tableData, "", 161, 8, 3, 0, DEFAULT_STR, "section", RIGHT_STR, true);
+            addTable(list, tableData, "", 163, 8, 3, 0, DEFAULT_STR, "section", RIGHT_STR, true);
             
             tableData.clear();
             tableData.resize(2);
@@ -944,7 +954,7 @@ public:
                 tableData[0] = {"Speedo", "", "⋯    │    ⋯   │    ⋯  "};
                 tableData[1] = {"IDDQ", "", "⋯    │    ⋯   │    ⋯  "};
             }
-            addTable(list, tableData, "", 161, 20, -2, 4);
+            addTable(list, tableData, "", 163, 20, -2, 4);
             
             // The part that was moved to the end
             addHeader(list, COMMANDS);
@@ -963,7 +973,7 @@ public:
             tableData = {
                 {NOTICE, "", UTILIZES + " 2 MB (" + ramString + ")"}
             };
-            addTable(list, tableData, "", 161, 10, 7, 0, DEFAULT_STR, DEFAULT_STR, RIGHT_STR, true);
+            addTable(list, tableData, "", 163, 10, 7, 0, DEFAULT_STR, DEFAULT_STR, RIGHT_STR, true);
             // Memory expansion toggle
             useMemoryExpansion = (loaderTitle == "nx-ovlloader+" || 
                                   parseValueFromIniSection(ULTRAHAND_CONFIG_INI_PATH, ULTRAHAND_PROJECT_NAME, "memory_expansion") == TRUE_STR);
@@ -973,7 +983,7 @@ public:
             tableData = {
                 {"", "", REBOOT_REQUIRED}  // Direct reuse without reallocation
             };
-            addTable(list, tableData, "", 161, 28, 0, 0, DEFAULT_STR, DEFAULT_STR, RIGHT_STR, true);
+            addTable(list, tableData, "", 163, 28, 0, 0, DEFAULT_STR, DEFAULT_STR, RIGHT_STR, true);
         
         } else if (dropdownSelection == "themeMenu") {
             addHeader(list, THEME);
@@ -1174,8 +1184,14 @@ public:
             useOpaqueScreenshots = (parseValueFromIniSection(ULTRAHAND_CONFIG_INI_PATH, ULTRAHAND_PROJECT_NAME, "opaque_screenshots") == TRUE_STR);
             createToggleListItem(list, OPAQUE_SCREENSHOTS, useOpaqueScreenshots, "opaque_screenshots");
             
-            progressAnimation = (parseValueFromIniSection(ULTRAHAND_CONFIG_INI_PATH, ULTRAHAND_PROJECT_NAME, "progress_animation") == TRUE_STR);
-            createToggleListItem(list, PROGRESS_ANIMATION, progressAnimation, "progress_animation");
+            //std::vector<std::vector<std::string>> commands = {
+            //    {"set-ini-value", ULTRAHAND_CONFIG_INI_PATH, ULTRAHAND_PROJECT_NAME, "overscan", "{value}"}
+            //};
+            //
+            //list->addItem(new tsl::elm::TrackBarV2(TV_OVERSCAN, PACKAGE_PATH, 80, 100, "%", interpretAndExecuteCommands, getSourceReplacement, commands, "overscan", false, false, -1, false, false));
+
+            //progressAnimation = (parseValueFromIniSection(ULTRAHAND_CONFIG_INI_PATH, ULTRAHAND_PROJECT_NAME, "progress_animation") == TRUE_STR);
+            //createToggleListItem(list, PROGRESS_ANIMATION, progressAnimation, "progress_animation");
         
         } else {
             addBasicListItem(list, FAILED_TO_OPEN + ": " + settingsIniPath);
@@ -2618,7 +2634,7 @@ bool drawCommandsMenu(std::unique_ptr<tsl::elm::List>& list,
         useHeaderIndent = false;
         tableStartGap = 19;
         tableEndGap = 12;
-        tableColumnOffset = 161;
+        tableColumnOffset = 163;
         tableSpacing = 0;
         tableSectionTextColor = DEFAULT_STR;
         tableInfoTextColor = DEFAULT_STR;
@@ -2629,7 +2645,7 @@ bool drawCommandsMenu(std::unique_ptr<tsl::elm::List>& list,
         maxValue = 100;
         units = "";
         steps = 0;
-        unlockedTrackbar = false;
+        unlockedTrackbar = true;
         onEveryTick = false;
         commandFooter = "";
         commandSystem = DEFAULT_STR;
@@ -3037,7 +3053,7 @@ bool drawCommandsMenu(std::unique_ptr<tsl::elm::List>& list,
                 } else if (commandMode == TRACKBAR_STR) {
                     onlyTables = false;
                     //lastItemIsScrollableTable = false;
-                    list->addItem(new tsl::elm::TrackBar(optionName, packagePath, minValue, maxValue, units, interpretAndExecuteCommands, getSourceReplacement, commands, option.first, false, false, -1, unlockedTrackbar, onEveryTick));
+                    list->addItem(new tsl::elm::TrackBarV2(optionName, packagePath, minValue, maxValue, units, interpretAndExecuteCommands, getSourceReplacement, commands, option.first, false, false, -1, unlockedTrackbar, onEveryTick));
                     continue;
                 } else if (commandMode == STEP_TRACKBAR_STR) {
                     if (steps == 0) { // assign minimum steps
@@ -3045,7 +3061,7 @@ bool drawCommandsMenu(std::unique_ptr<tsl::elm::List>& list,
                     }
                     onlyTables = false;
                     //lastItemIsScrollableTable = false;
-                    list->addItem(new tsl::elm::StepTrackBar(optionName, packagePath, steps, minValue, maxValue, units, interpretAndExecuteCommands, getSourceReplacement, commands, option.first, false, unlockedTrackbar, onEveryTick));
+                    list->addItem(new tsl::elm::StepTrackBarV2(optionName, packagePath, steps, minValue, maxValue, units, interpretAndExecuteCommands, getSourceReplacement, commands, option.first, false, unlockedTrackbar, onEveryTick));
                     continue;
                 } else if (commandMode == NAMED_STEP_TRACKBAR_STR) {
                     entryList = {};
@@ -3125,7 +3141,7 @@ bool drawCommandsMenu(std::unique_ptr<tsl::elm::List>& list,
                     }
                     onlyTables = false;
                     //lastItemIsScrollableTable = false;
-                    list->addItem(new tsl::elm::NamedStepTrackBar(optionName, packagePath, entryList, interpretAndExecuteCommands, getSourceReplacement, commands, option.first, unlockedTrackbar, onEveryTick));
+                    list->addItem(new tsl::elm::NamedStepTrackBarV2(optionName, packagePath, entryList, interpretAndExecuteCommands, getSourceReplacement, commands, option.first, unlockedTrackbar, onEveryTick));
                     continue;
                 }
                 if (useSelection) { // For wildcard commands (dropdown menus)
@@ -3927,7 +3943,7 @@ public:
                 setDefaultValue(ultrahandSection, "swipe_to_open", TRUE_STR, useSwipeToOpen);
                 setDefaultValue(ultrahandSection, "right_alignment", FALSE_STR, useRightAlignment);
                 setDefaultValue(ultrahandSection, "opaque_screenshots", TRUE_STR, useOpaqueScreenshots);
-                setDefaultValue(ultrahandSection, "progress_animation", FALSE_STR, progressAnimation);
+                //setDefaultValue(ultrahandSection, "progress_animation", FALSE_STR, progressAnimation);
                 
                 setDefaultStrValue(ultrahandSection, DEFAULT_LANG_STR, defaultLang, defaultLang);
             
@@ -3950,6 +3966,10 @@ public:
             
                 if (ultrahandSection.count("hide_soc_temp") == 0) {
                     setIniFileValue(ULTRAHAND_CONFIG_INI_PATH, ULTRAHAND_PROJECT_NAME, "hide_soc_temp", TRUE_STR);
+                }
+
+                if (ultrahandSection.count("overscan") == 0) {
+                    setIniFileValue(ULTRAHAND_CONFIG_INI_PATH, ULTRAHAND_PROJECT_NAME, "overscan", "100");
                 }
             
                 // Handle the 'to_packages' option if it exists
@@ -3977,8 +3997,10 @@ public:
         std::string langFile = LANG_PATH+defaultLang+".json";
         if (isFileOrDirectory(langFile))
             parseLanguage(langFile);
-        else
-            reinitializeLangVars();
+        else {
+        	if (defaultLang == "en")
+            	reinitializeLangVars();
+        }
         
         // write default theme
         initializeTheme();
@@ -4734,7 +4756,7 @@ public:
                     }
                 }
 
-                if ((keysHeld & KEY_RIGHT) && !(keysHeld & ~KEY_RIGHT & ALL_KEYS_MASK) && !stillTouching && ((!allowSlide && onTrackBar && !unlockedSlide) || !onTrackBar || simulatedNextPage) ) {
+                if ((keysHeld & KEY_RIGHT) && !(keysHeld & ~KEY_RIGHT & ~KEY_R & ALL_KEYS_MASK) && !stillTouching && (((!allowSlide && !unlockedSlide && onTrackBar) || (keysHeld & KEY_R)) || !onTrackBar || simulatedNextPage)) {
                     simulatedNextPage = false;
                     allowSlide = unlockedSlide = false;
                     if (menuMode != PACKAGES_STR) {
@@ -4748,7 +4770,7 @@ public:
                         return true;
                     }
                 }
-                if ((keysHeld & KEY_LEFT) && !(keysHeld & ~KEY_LEFT & ALL_KEYS_MASK) && !stillTouching && ((!allowSlide && onTrackBar && !unlockedSlide) || !onTrackBar || simulatedNextPage)) {
+                if ((keysHeld & KEY_LEFT) && !(keysHeld & ~KEY_LEFT & ~KEY_R & ALL_KEYS_MASK) && !stillTouching && (((!allowSlide && onTrackBar && !unlockedSlide) || (keysHeld & KEY_R)) || !onTrackBar || simulatedNextPage)) {
                     simulatedNextPage = false;
                     allowSlide = unlockedSlide = false;
                     if (menuMode != OVERLAYS_STR) {
@@ -4887,15 +4909,13 @@ public:
      * It sets up file system mounts, initializes network services, and performs other necessary tasks.
      */
     virtual void initServices() override {
-        isLauncher = true;
-        fsdevMountSdmc();
-        splInitialize();
-        spsmInitialize();
-        i2cInitialize();
-        ASSERT_FATAL(socketInitializeDefault());
-        ASSERT_FATAL(nifmInitialize(NifmServiceType_User));
-        ASSERT_FATAL(smInitialize());
-        tsl::initializeThemeVars();
+        //isLauncher = true;
+
+        //tsl::initializeThemeVars();
+        //tsl::initializeUltrahandSettings(); // unnecessary for Ultrahand's implementation
+        //ASSERT_FATAL(smInitialize()); // might be unnecessary? needs investigating
+
+    	ASSERT_FATAL(socketInitializeDefault());
         initializeCurl();
 
         // Load and execute "boot" commands if they exist
@@ -4926,14 +4946,10 @@ public:
             executeIniCommands(PACKAGE_PATH + EXIT_PACKAGE_FILENAME, "exit");
 
         cleanupCurl();
-        closeInterpreterThread(); // shouldn't be running, but run close anyways
         socketExit();
-        nifmExit();
-        i2cExit();
-        smExit();
-        spsmExit();
-        splExit();
-        fsdevUnmountAll();
+
+        //smExit();
+        //closeInterpreterThread(); // shouldn't be running, but run close anyways
     }
     
     /**

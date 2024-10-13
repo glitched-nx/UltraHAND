@@ -18,6 +18,7 @@
 .SUFFIXES:
 #---------------------------------------------------------------------------------
 
+
 ifeq ($(strip $(DEVKITPRO)),)
 $(error "Please set DEVKITPRO in your environment. export DEVKITPRO=<path to>/devkitpro")
 endif
@@ -55,11 +56,11 @@ include $(DEVKITPRO)/libnx/switch_rules
 #---------------------------------------------------------------------------------
 APP_TITLE	:= Ultrahand
 APP_AUTHOR	:= ppkantorski
-APP_VERSION	:= 1.7.7
+APP_VERSION	:= 1.7.8
 TARGET	    := ovlmenu
 BUILD	    := build
-SOURCES	    := source common 
-INCLUDES	:= source common include lib/libultra/include lib/libtesla/include
+SOURCES	    := source common lib/libultrahand/libultra/source
+INCLUDES	:= source common include lib/libultrahand/libultra/include lib/libultrahand/libtesla/include
 NO_ICON	    := 1
 
 #---------------------------------------------------------------------------------
@@ -71,6 +72,19 @@ CFLAGS := -Wall -Os -ffunction-sections -fdata-sections -flto\
 			$(ARCH) $(DEFINES)
 
 CFLAGS += $(INCLUDE) -D__SWITCH__ -DAPP_VERSION="\"$(APP_VERSION)\"" -D_FORTIFY_SOURCE=2
+
+# For compiling Ultrahand Overlay only
+IS_LAUNCHER_DIRECTIVE := 1
+CFLAGS += -DIS_LAUNCHER_DIRECTIVE=$(IS_LAUNCHER_DIRECTIVE)
+
+# Enable Widget
+USING_WIDGET_DIRECTIVE := 1  # or true
+CFLAGS += -DUSING_WIDGET_DIRECTIVE=$(USING_WIDGET_DIRECTIVE)
+
+# Enable Logging
+USING_LOGGING_DIRECTIVE := 1  # or true
+CFLAGS += -DUSING_LOGGING_DIRECTIVE=$(USING_LOGGING_DIRECTIVE)
+
 
 CXXFLAGS := $(CFLAGS) -std=c++20 -Wno-dangling-else -ffast-math
 
@@ -85,6 +99,7 @@ LDFLAGS += -Wl,--gc-sections -Wl,--as-needed
 # For Ensuring Parallel LTRANS Jobs w/ GCC, make -j6
 CXXFLAGS += -flto -fuse-linker-plugin -flto=6
 LDFLAGS += -flto=6
+
 
 # Add -z notext to LDFLAGS to allow dynamic relocations in read-only segments
 #LDFLAGS += -z notext

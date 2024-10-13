@@ -32,6 +32,8 @@
 //#include <sys/statvfs.h>
 
 
+using namespace ult;
+
 static std::atomic<bool> abortCommand(false);
 static std::atomic<bool> triggerExit(false);
 
@@ -286,6 +288,7 @@ std::string getLocalIpAddress() {
     Result rc;
     u32 ipAddress;
 
+    
     // Get the current IP address
     rc = nifmGetCurrentIpAddress(&ipAddress);
     if (R_SUCCEEDED(rc)) {
@@ -296,6 +299,7 @@ std::string getLocalIpAddress() {
                  (ipAddress >> 8) & 0xFF,
                  (ipAddress >> 16) & 0xFF,
                  (ipAddress >> 24) & 0xFF);
+        nifmExit();
         return std::string(ipStr);
     } else {
         // Return a default IP address if the IP could not be retrieved
@@ -315,31 +319,6 @@ void removeEmptyCommands(std::vector<std::vector<std::string>>& commands) {
         commands.end());
 }
 
-
-void reloadWallpaper() {
-    // Signal that wallpaper is being refreshed
-    refreshWallpaper.store(true, std::memory_order_release);
-
-    // Lock the mutex for condition waiting
-    std::unique_lock<std::mutex> lock(wallpaperMutex);
-
-    // Wait for inPlot to be false before reloading the wallpaper
-    cv.wait(lock, [] { return !inPlot.load(std::memory_order_acquire); });
-
-    // Clear the current wallpaper data
-    wallpaperData.clear();
-
-    // Reload the wallpaper file
-    if (isFileOrDirectory(WALLPAPER_PATH)) {
-        loadWallpaperFile(WALLPAPER_PATH);
-    }
-
-    // Signal that wallpaper has finished refreshing
-    refreshWallpaper.store(false, std::memory_order_release);
-    
-    // Notify any waiting threads
-    cv.notify_all();
-}
 
 
 
@@ -694,20 +673,6 @@ std::tuple<Result, std::string, std::string> getOverlayInfo(const std::string& f
 }
 
 
-//auto returnRootFrame(
-//    std::unique_ptr<tsl::elm::List>& list,  // Use unique_ptr to avoid copying and releasing the list
-//    const std::string& title,               // Use const reference to avoid copying strings
-//    const std::string& subTitle,
-//    const std::string& param1 = "",
-//    const std::string& param2 = "",
-//    const std::string& param3 = "",
-//    const std::string& param4 = ""
-//) {
-//    auto rootFrame = std::make_unique<tsl::elm::OverlayFrame>(title, subTitle, param1, param2, param3, param4);
-//    rootFrame->setContent(list.release()); // Take ownership of the list
-//
-//    return rootFrame.release(); // Return unique_ptr directly
-//}
 
 void addHeader(auto& list, const std::string& headerText) {
     list->addItem(new tsl::elm::CategoryHeader(headerText));
@@ -723,7 +688,7 @@ void addDummyListItem(auto& list, s32 index = -1) {
 
 
 void drawTable(std::unique_ptr<tsl::elm::List>& list, std::vector<std::string>& sectionLines, std::vector<std::string>& infoLines,
-               size_t columnOffset = 161, size_t startGap = 19, size_t endGap = 12, size_t newlineGap = 0,
+               size_t columnOffset = 163, size_t startGap = 19, size_t endGap = 12, size_t newlineGap = 0,
                const std::string& tableSectionTextColor = DEFAULT_STR, const std::string& tableInfoTextColor = DEFAULT_STR, 
                const std::string& alignment = LEFT_STR, bool hideTableBackground = false, bool useHeaderIndent = false, bool isScrollable = false) {
 
@@ -760,7 +725,7 @@ void drawTable(std::unique_ptr<tsl::elm::List>& list, std::vector<std::string>& 
 
     list->addItem(new tsl::elm::TableDrawer([=](tsl::gfx::Renderer* renderer, s32 x, s32 y, s32 w, s32 h) mutable {
         if (useHeaderIndent) {
-            renderer->drawRect(x - 2, y + 1, 3, 23, renderer->a(tsl::headerSeparatorColor));
+            renderer->drawRect(x - 2, y + 2, 4, 22, renderer->a(tsl::headerSeparatorColor));
         }
         std::string infoText;
         for (size_t i = 0; i < infoLines.size(); ++i) {
@@ -772,7 +737,7 @@ void drawTable(std::unique_ptr<tsl::elm::List>& list, std::vector<std::string>& 
                 if (alignment == LEFT_STR) {
                     infoXOffsets[i] = static_cast<int>(columnOffset);
                 } else if (alignment == RIGHT_STR) {
-                    infoXOffsets[i] = static_cast<int>(xMax - infoStringWidths[i] + (columnOffset - 160));
+                    infoXOffsets[i] = static_cast<int>(xMax - infoStringWidths[i] + (columnOffset - 160 +1));
                 } else { // CENTER_STR
                     infoXOffsets[i] = static_cast<int>(columnOffset + (xMax - infoStringWidths[i]) / 2);
                 }
@@ -798,7 +763,7 @@ void drawTable(std::unique_ptr<tsl::elm::List>& list, std::vector<std::string>& 
 void applyPlaceholderReplacements(std::vector<std::string>& cmd, const std::string& hexPath, const std::string& iniPath, const std::string& listString, const std::string& listPath, const std::string& jsonString, const std::string& jsonPath);
 
 void addTable(std::unique_ptr<tsl::elm::List>& list, std::vector<std::vector<std::string>>& tableData,
-    const std::string& packagePath, const size_t& columnOffset=161, const size_t& tableStartGap=19, const size_t& tableEndGap=12, const size_t& tableSpacing=0,
+    const std::string& packagePath, const size_t& columnOffset=163, const size_t& tableStartGap=19, const size_t& tableEndGap=12, const size_t& tableSpacing=0,
     const std::string& tableSectionTextColor=DEFAULT_STR, const std::string& tableInfoTextColor=DEFAULT_STR, const std::string& tableAlignment=RIGHT_STR, const bool& hideTableBackground = false, const bool& useHeaderIndent = false, const bool& isScrollable = false) {
     std::string message;
 
@@ -997,13 +962,13 @@ void addPackageInfo(std::unique_ptr<tsl::elm::List>& list, auto& packageHeader, 
 
     // Adding package header info
     if (!packageHeader.title.empty()) {
-        sectionLines.push_back(TITLE);
+        sectionLines.push_back(_TITLE);
         infoLines.push_back(packageHeader.title);
         //numEntries++;
     }
 
     if (!packageHeader.version.empty()) {
-        sectionLines.push_back(VERSION);
+        sectionLines.push_back(_VERSION);
         infoLines.push_back(packageHeader.version);
         //numEntries++;
     }
@@ -1012,15 +977,15 @@ void addPackageInfo(std::unique_ptr<tsl::elm::List>& list, auto& packageHeader, 
         //sectionLines.push_back(CREATOR);
         //infoLines.push_back(packageHeader.creator);
         //numEntries++;
-        addWrappedText(CREATOR, packageHeader.creator);
+        addWrappedText(_CREATOR, packageHeader.creator);
     }
 
     if (!packageHeader.about.empty()) {
-        addWrappedText(ABOUT, packageHeader.about);
+        addWrappedText(_ABOUT, packageHeader.about);
     }
 
     if (!packageHeader.credits.empty()) {
-        addWrappedText(CREDITS, packageHeader.credits);
+        addWrappedText(_CREDITS, packageHeader.credits);
     }
 
     // Drawing the table with section lines and info lines
@@ -1531,45 +1496,276 @@ std::string getCurrentTimestamp(const std::string& format) {
 }
 
 
-// Define the replacePlaceholders function outside of applyPlaceholderReplacements
-auto replacePlaceholders = [](std::string& arg, const std::string& placeholder, const std::function<std::string(const std::string&)>& replacer) {
-    size_t startPos, endPos;
-    std::string lastArg, replacement;
-
-    size_t nestedStartPos, nextStartPos, nextEndPos;
-
-    while ((startPos = arg.find(placeholder)) != std::string::npos) {
-        nestedStartPos = startPos;
-        while (true) {
-            nextStartPos = arg.find(placeholder, nestedStartPos + 1);
-            nextEndPos = arg.find(")}", nestedStartPos);
-            if (nextStartPos != std::string::npos && nextStartPos < nextEndPos) {
-                nestedStartPos = nextStartPos;
-            } else {
-                endPos = nextEndPos;
-                break;
-            }
-        }
-
-        if (endPos == std::string::npos || endPos <= startPos) break;
-
-        replacement = replacer(arg.substr(startPos, endPos - startPos + 2));
-        if (replacement.empty()) {
-            replacement = NULL_STR;
-        }
-        arg.replace(startPos, endPos - startPos + 2, replacement);
-        if (arg == lastArg) {
-            if (interpreterLogging) {
-                disableLogging = false;
-                logMessage("failed replacement arg: " + arg);
-            }
-            replacement = NULL_STR;
-            arg.replace(startPos, endPos - startPos + 2, replacement);
-            break;
-        }
-        lastArg = arg;
+// Helper function to skip spaces
+void skipSpaces(const std::string& expression, size_t& pos) {
+    while (pos < expression.length() && std::isspace(expression[pos])) {
+        ++pos;
     }
-};
+}
+
+// Helper function to parse a number or a nested expression in parentheses
+float parseExpression(const std::string& expression, size_t& pos, bool& valid);
+
+float parseNumber(const std::string& expression, size_t& pos, bool& valid) {
+    skipSpaces(expression, pos);
+
+    // Check if the expression starts with a '(' indicating a nested expression
+    if (expression[pos] == '(') {
+        ++pos;  // Skip the '('
+        float result = parseExpression(expression, pos, valid);
+        if (expression[pos] == ')') {
+            ++pos;  // Skip the ')'
+        } else {
+            valid = false;  // Unmatched parentheses
+        }
+        return result;
+    }
+
+    // Parse a number
+    float result = 0.0f;
+    bool hasDecimal = false;
+    float decimalPlace = 0.1f;
+    bool isNegative = false;
+
+    if (expression[pos] == '-') {
+        isNegative = true;
+        ++pos;
+    }
+
+    while (pos < expression.length() && (std::isdigit(expression[pos]) || expression[pos] == '.')) {
+        if (expression[pos] == '.') {
+            hasDecimal = true;
+            ++pos;
+            continue;
+        }
+
+        if (hasDecimal) {
+            result += (expression[pos] - '0') * decimalPlace;
+            decimalPlace *= 0.1f;
+        } else {
+            result = result * 10.0f + (expression[pos] - '0');
+        }
+        ++pos;
+    }
+
+    if (isNegative) {
+        result = -result;
+    }
+
+    valid = true;
+    return result;
+}
+
+// Function to evaluate an expression, which may include parentheses
+float parseExpression(const std::string& expression, size_t& pos, bool& valid) {
+    skipSpaces(expression, pos);
+
+    float result = parseNumber(expression, pos, valid);
+    if (!valid) return 0;
+
+    while (pos < expression.length()) {
+        skipSpaces(expression, pos);
+        if (pos >= expression.length()) break;
+
+        char op = expression[pos++];
+        skipSpaces(expression, pos);
+
+        float operand = parseNumber(expression, pos, valid);
+        if (!valid) return 0;
+
+        switch (op) {
+            case '+':
+                result += operand;
+                break;
+            case '-':
+                result -= operand;
+                break;
+            case '*':
+                result *= operand;
+                break;
+            case '/':
+                if (operand == 0) {
+                    valid = false;  // Division by zero
+                    return 0;
+                }
+                result /= operand;
+                break;
+            case '%':
+                if (std::fmod(result, 1.0f) != 0.0f || std::fmod(operand, 1.0f) != 0.0f) {
+                    valid = false;  // Modulus only valid for integers
+                    return 0;
+                }
+                result = static_cast<int>(result) % static_cast<int>(operand);
+                break;
+            default:
+                valid = false;
+                return 0;
+        }
+    }
+
+    valid = true;
+    return result;
+}
+
+// Function to evaluate a complete expression (this will call parseExpression)
+float evaluateExpression(const std::string& expression, bool& valid) {
+    size_t pos = 0;
+    return parseExpression(expression, pos, valid);
+}
+
+// Handle Math Placeholder with Parentheses, Modulus, and Optional Integer Support
+std::string handleMath(const std::string& placeholder) {
+    size_t startPos = placeholder.find('(') + 1;
+    size_t endPos = placeholder.find(')');
+
+    // Return NULL_STR if format is invalid
+    if (startPos == std::string::npos || endPos == std::string::npos || startPos >= endPos) {
+        return NULL_STR;
+    }
+
+    std::string mathExpression = placeholder.substr(startPos, endPos - startPos);
+
+    // Check for an optional second parameter, like 'true' to force integer output
+    size_t commaPos = mathExpression.find(',');
+    bool forceInteger = false;
+
+    if (commaPos != std::string::npos) {
+        std::string secondParam = mathExpression.substr(commaPos + 1);
+        trim(secondParam);  // Optionally, remove spaces from the second param
+        forceInteger = (secondParam == TRUE_STR);
+        mathExpression = mathExpression.substr(0, commaPos);  // Remove the second param for evaluation
+    }
+
+    // Remove unnecessary spaces in the expression
+    mathExpression.erase(remove_if(mathExpression.begin(), mathExpression.end(), ::isspace), mathExpression.end());
+
+    // Evaluate the math expression
+    bool valid = false;
+    float result = evaluateExpression(mathExpression, valid);
+
+    // Return NULL_STR if the expression was invalid
+    if (!valid) {
+        return NULL_STR;
+    }
+
+    // If forceInteger is true, or the result is already an integer, return it as an integer
+    if (forceInteger || std::fmod(result, 1.0f) == 0.0f) {
+        return std::to_string(static_cast<int>(result));
+    }
+
+    // Otherwise, return the result as a floating-point string
+    return std::to_string(result);
+}
+
+std::string handleLength(const std::string& placeholder) {
+    size_t startPos = placeholder.find('(') + 1;
+    size_t endPos = placeholder.find(')');
+    
+    if (startPos != std::string::npos && endPos != std::string::npos && endPos > startPos) {
+        std::string str = placeholder.substr(startPos, endPos - startPos);
+        trim(str);  // Remove any extra spaces
+        removeQuotes(str);  // If your strings are wrapped in quotes, remove them
+        
+        // Return the length of the string as a string
+        return std::to_string(str.length());
+    }
+    
+    return placeholder;  // If invalid, return the original placeholder
+}
+
+
+
+// Define the replacePlaceholders function outside of applyPlaceholderReplacements
+//auto replacePlaceholders = [](std::string& arg, const std::string& placeholder, const std::function<std::string(const std::string&)>& replacer) {
+//    size_t startPos, endPos;
+//    std::string lastArg, replacement;
+//
+//    size_t nestedStartPos, nextStartPos, nextEndPos;
+//
+//    while ((startPos = arg.find(placeholder)) != std::string::npos) {
+//        nestedStartPos = startPos;
+//        while (true) {
+//            nextStartPos = arg.find(placeholder, nestedStartPos + 1);
+//            nextEndPos = arg.find(")}", nestedStartPos);
+//            if (nextStartPos != std::string::npos && nextStartPos < nextEndPos) {
+//                nestedStartPos = nextStartPos;
+//            } else {
+//                endPos = nextEndPos;
+//                break;
+//            }
+//        }
+//
+//        if (endPos == std::string::npos || endPos <= startPos) break;
+//
+//        replacement = replacer(arg.substr(startPos, endPos - startPos + 2));
+//        if (replacement.empty()) {
+//            replacement = NULL_STR;
+//        }
+//        arg.replace(startPos, endPos - startPos + 2, replacement);
+//        if (arg == lastArg) {
+//            if (interpreterLogging) {
+//                disableLogging = false;
+//                logMessage("failed replacement arg: " + arg);
+//            }
+//            replacement = NULL_STR;
+//            arg.replace(startPos, endPos - startPos + 2, replacement);
+//            break;
+//        }
+//        lastArg = arg;
+//    }
+//};
+
+void replacePlaceholdersRecursively(std::string& arg, const std::vector<std::pair<std::string, std::function<std::string(const std::string&)>>>& placeholders) {
+    std::string lastArg;
+    
+    // Continue replacing until no more placeholders are found
+    bool placeholdersRemaining = true;
+    while (placeholdersRemaining) {
+        placeholdersRemaining = false; // Reset the flag at the beginning of each loop
+        
+        for (const auto& [placeholder, replacer] : placeholders) {
+            size_t startPos, endPos;
+            size_t nestedStartPos, nextStartPos, nextEndPos;
+
+            while ((startPos = arg.find(placeholder)) != std::string::npos) {
+                nestedStartPos = startPos;
+                while (true) {
+                    nextStartPos = arg.find(placeholder, nestedStartPos + 1);
+                    nextEndPos = arg.find(")}", nestedStartPos);
+                    if (nextStartPos != std::string::npos && nextStartPos < nextEndPos) {
+                        nestedStartPos = nextStartPos;
+                    } else {
+                        endPos = nextEndPos;
+                        break;
+                    }
+                }
+
+                if (endPos == std::string::npos || endPos <= startPos) break;
+
+                std::string placeholderContent = arg.substr(startPos, endPos - startPos + 2);
+                std::string replacement = replacer(placeholderContent);
+
+                if (replacement.empty()) {
+                    replacement = NULL_STR;
+                }
+
+                arg.replace(startPos, endPos - startPos + 2, replacement);
+                placeholdersRemaining = true; // Since we replaced something, we continue processing
+
+                // To prevent infinite loops, if no change is made, break
+                if (arg == lastArg) {
+                    arg.replace(startPos, endPos - startPos + 2, NULL_STR);
+                    break;
+                }
+
+                lastArg = arg;
+            }
+        }
+    }
+}
+
+
+
 
 void applyPlaceholderReplacements(std::vector<std::string>& cmd, const std::string& hexPath, const std::string& iniPath, const std::string& listString, const std::string& listPath, const std::string& jsonString, const std::string& jsonPath) {
     std::vector<std::pair<std::string, std::function<std::string(const std::string&)>>> placeholders = {
@@ -1624,6 +1820,26 @@ void applyPlaceholderReplacements(std::vector<std::string>& cmd, const std::stri
             std::string hexValue = placeholder.substr(startPos, endPos - startPos);
             return hexToDecimal(hexValue);
         }},
+        {"{random(", [&](const std::string& placeholder) {
+            // Ensure the random seed is initialized
+            std::srand(std::time(0));
+            
+            size_t startPos = placeholder.find('(') + 1;
+            size_t endPos = placeholder.find(')');
+            std::string parameters = placeholder.substr(startPos, endPos - startPos);
+            size_t commaPos = parameters.find(',');
+            
+            if (commaPos != std::string::npos) {
+                int lowValue = std::stoi(parameters.substr(0, commaPos));
+                int highValue = std::stoi(parameters.substr(commaPos + 1));
+                
+                // Generate a random number in the range [lowValue, highValue]
+                int randomValue = lowValue + rand() % (highValue - lowValue + 1);
+                
+                return std::to_string(randomValue);  // Return the random value as a string
+            }
+            return placeholder;
+        }},
         {"{slice(", [&](const std::string& placeholder) {
             size_t startPos = placeholder.find('(') + 1;
             size_t endPos = placeholder.find(')');
@@ -1663,64 +1879,10 @@ void applyPlaceholderReplacements(std::vector<std::string>& cmd, const std::stri
                 }
             }
             return placeholder;
-        }}
+        }},
+        {"{math(", [&](const std::string& placeholder) { return handleMath(placeholder); }},
+        {"{length(", [&](const std::string& placeholder) { return handleLength(placeholder); }},
     };
-
-    // First replace inner placeholders like {ram_model}
-    //for (auto& [placeholder, replacer] : placeholders) {
-    //    for (auto& arg : cmd) {
-    //        replaceAllPlaceholders(arg, placeholder, replacer(placeholder));
-    //    }
-    //}
-
-    //std::string titleId = getTitleIdAsString();
-    //
-    //for (auto& arg : cmd) {
-    //    replaceAllPlaceholders(arg, "{ram_vendor}", memoryVendor);
-    //    replaceAllPlaceholders(arg, "{ram_model}", memoryModel);
-    //    replaceAllPlaceholders(arg, "{ams_version}", amsVersion);
-    //    replaceAllPlaceholders(arg, "{hos_version}", hosVersion);
-    //    replaceAllPlaceholders(arg, "{cpu_speedo}", std::to_string(cpuSpeedo0));
-    //    replaceAllPlaceholders(arg, "{cpu_iddq}", std::to_string(cpuIDDQ));
-    //    replaceAllPlaceholders(arg, "{gpu_speedo}", std::to_string(cpuSpeedo2));
-    //    replaceAllPlaceholders(arg, "{gpu_iddq}", std::to_string(gpuIDDQ));
-    //    replaceAllPlaceholders(arg, "{soc_speedo}", std::to_string(socSpeedo0));
-    //    replaceAllPlaceholders(arg, "{soc_iddq}", std::to_string(socIDDQ));
-    //    replaceAllPlaceholders(arg, "{title_id}", titleId);
-    //    
-    //    replaceAllPlaceholders(arg, "{A}", "");
-    //    replaceAllPlaceholders(arg, "{B}", "");
-    //    replaceAllPlaceholders(arg, "{X}", "");
-    //    replaceAllPlaceholders(arg, "{Y}", "");
-    //    replaceAllPlaceholders(arg, "{L}", "");
-    //    replaceAllPlaceholders(arg, "{R}", "");
-    //    replaceAllPlaceholders(arg, "{ZL}", "");
-    //    replaceAllPlaceholders(arg, "{ZR}", "");
-    //    replaceAllPlaceholders(arg, "{DUP}", "");
-    //    replaceAllPlaceholders(arg, "{DDOWN}", "");
-    //    replaceAllPlaceholders(arg, "{DLEFT}", "");
-    //    replaceAllPlaceholders(arg, "{DRIGHT}", "");
-    //    replaceAllPlaceholders(arg, "{LS}", "");
-    //    replaceAllPlaceholders(arg, "{RS}", "");
-    //    replaceAllPlaceholders(arg, "{PLUS}", "");
-    //    replaceAllPlaceholders(arg, "{MINUS}", "");
-    //    
-    //    replaceAllPlaceholders(arg, "{UP_ARROW}", "");
-    //    replaceAllPlaceholders(arg, "{DOWN_ARROW}", "");
-    //    replaceAllPlaceholders(arg, "{LEFT_ARROW}", "");
-    //    replaceAllPlaceholders(arg, "{RIGHT_ARROW}", "");
-    //    replaceAllPlaceholders(arg, "{RIGHT_UP_ARROW}", "");
-    //    replaceAllPlaceholders(arg, "{RIGHT_DOWN_ARROW}", "");
-    //    replaceAllPlaceholders(arg, "{LEFT_UP_ARROW}", "");
-    //    replaceAllPlaceholders(arg, "{LEFT_DOWN_ARROW}", "");
-    //    
-    //    for (const auto& [placeholder, replacer] : placeholders) {
-    //        replacePlaceholders(arg, placeholder, replacer);
-    //    }
-    //    // Failed replacement cleanup
-    //    //if (arg == NULL_STR) arg = UNAVAILABLE_SELECTION;
-    //}
-
 
     // Create a map with all non-button/arrow placeholders and their replacements
     std::unordered_map<std::string, std::string> generalPlaceholders = {
@@ -1746,9 +1908,12 @@ void applyPlaceholderReplacements(std::vector<std::string>& cmd, const std::stri
         replacePlaceholdersInArg(arg, symbolPlaceholders);
 
         // Additionally replace placeholders from your custom map
-        for (const auto& [placeholder, replacer] : placeholders) {
-            replacePlaceholders(arg, placeholder, replacer);
-        }
+        //for (const auto& [placeholder, replacer] : placeholders) {
+        //    replacePlaceholders(arg, placeholder, replacer);
+        //}
+
+        // Resolve nested placeholders
+        replacePlaceholdersRecursively(arg, placeholders);
     }
 }
 
@@ -1765,7 +1930,7 @@ void processCommand(const std::vector<std::string>& cmd, const std::string& pack
  *
  * @param commands A list of commands, where each command is represented as a vector of strings.
  */
-void interpretAndExecuteCommands(std::vector<std::vector<std::string>>&& commands, const std::string& packagePath="", const std::string& selectedCommand="") {
+bool interpretAndExecuteCommands(std::vector<std::vector<std::string>>&& commands, const std::string& packagePath="", const std::string& selectedCommand="") {
     
     if (!packagePath.empty()) {
         disableLogging = !(parseValueFromIniSection(PACKAGES_INI_FILEPATH, getNameFromPath(packagePath), USE_LOGGING_STR) == TRUE_STR);
@@ -1827,7 +1992,7 @@ void interpretAndExecuteCommands(std::vector<std::vector<std::string>>&& command
             commandSuccess = false;
             disableLogging = true;
             logFilePath = defaultLogFilePath;
-            return;
+            return commandSuccess;
         }
 
         if (cmd.empty()) {
@@ -1915,6 +2080,8 @@ void interpretAndExecuteCommands(std::vector<std::vector<std::string>>&& command
     }
     disableLogging = true;
     logFilePath = defaultLogFilePath;
+
+    return commandSuccess;
 }
 
 
@@ -2463,7 +2630,16 @@ void processCommand(const std::vector<std::string>& cmd, const std::string& pack
             std::string togglePattern = cmd[1];
             removeQuotes(togglePattern);
             lblInitialize();
-            if (togglePattern == ON_STR)
+            if (togglePattern == "auto") {
+                if (cmd.size() >= 3) {
+                    togglePattern = cmd[2];
+                    if (togglePattern == ON_STR)
+                        lblEnableAutoBrightnessControl();
+                    else if (togglePattern == OFF_STR)
+                        lblDisableAutoBrightnessControl();
+                }
+            }
+            else if (togglePattern == ON_STR)
                 lblSwitchBacklightOn(0);
             else if (togglePattern == OFF_STR)
                 lblSwitchBacklightOff(0);
@@ -2472,6 +2648,89 @@ void processCommand(const std::vector<std::string>& cmd, const std::string& pack
             }
             lblExit();
         }
+    //} else if (commandName == "volume") {
+    //    disableLogging = false;
+    //    if (cmd.size() >= 2) {
+    //        std::string volumeInput = cmd[1];
+    //        logMessage("Received volume command: " + volumeInput);  // Log the input
+    //        removeQuotes(volumeInput);  // Sanitize input by removing quotes
+    //        
+    //        if (isValidNumber(volumeInput)) {
+    //            logMessage("Volume input is a valid number: " + volumeInput);  // Log valid number
+    //            
+    //            // Convert input string to a float for percentage (0-100)
+    //            float volumePercentage = std::stof(volumeInput);
+    //            logMessage("Converted volume to percentage: " + std::to_string(volumePercentage));  // Log the percentage
+    //            
+    //            // Ensure the volume is within valid range 0 to 100
+    //            if (volumePercentage < 0.0f || volumePercentage > 100.0f) {
+    //                logMessage("Volume percentage out of bounds: " + std::to_string(volumePercentage));
+    //                return;  // Exit if invalid percentage
+    //            }
+    //            
+    //            // Initialize the settings service
+    //            logMessage("Initializing settings service...");
+    //            Result rc = setsysInitialize();
+    //            if (R_SUCCEEDED(rc)) {
+    //                logMessage("Settings service initialized successfully.");
+    //                
+    //                SetSysAudioVolume audio_volume;
+    //                audio_volume.volume = static_cast<uint8_t>((volumePercentage / 100.0f) * 15.0f);  // Scale to 0-15
+    //                logMessage("Volume scaled to 0-15: " + std::to_string(audio_volume.volume));  // Log scaled volume
+    //                
+    //                // Set the volume for the Console
+    //                logMessage("Setting audio volume...");
+    //                rc = setsysSetAudioVolume(SetSysAudioDevice_Console, &audio_volume);
+    //                
+    //                // Check if setting the volume was successful
+    //                if (R_FAILED(rc)) {
+    //                    logMessage("Failed to set audio volume. Error code: " + std::to_string(rc));
+    //                    setsysExit();
+    //                    return;
+    //                }
+    //                
+    //                logMessage("Audio volume set successfully.");
+    //                setsysExit();
+    //            } else {
+    //                logMessage("Failed to initialize settings service. Error code: " + std::to_string(rc));
+    //            }
+    //        } else {
+    //            logMessage("Invalid volume input: " + volumeInput);
+    //        }
+    //    } else {
+    //        logMessage("Volume command missing required argument.");
+    //    }
+    //} else if (commandName == "wifi") {
+    //    disableLogging = false;
+    //    if (cmd.size() >= 2) {
+    //        std::string togglePattern = cmd[1];
+    //        removeQuotes(togglePattern);
+    //
+    //        Result rc;
+    //
+    //        if (togglePattern == ON_STR) {
+    //            logMessage("Turning Wi-Fi ON...");
+    //            rc = nifmSetWirelessCommunicationEnabled(true);  // Turn Wi-Fi on
+    //            if (R_SUCCEEDED(rc)) {
+    //                logMessage("Wi-Fi enabled successfully.");
+    //            } else {
+    //                logMessage("Failed to enable Wi-Fi. Error code: " + std::to_string(rc));
+    //            }
+    //        } else if (togglePattern == OFF_STR) {
+    //            logMessage("Turning Wi-Fi OFF...");
+    //            rc = nifmSetWirelessCommunicationEnabled(false);  // Turn Wi-Fi off
+    //            if (R_SUCCEEDED(rc)) {
+    //                logMessage("Wi-Fi disabled successfully.");
+    //            } else {
+    //                logMessage("Failed to disable Wi-Fi. Error code: " + std::to_string(rc));
+    //            }
+    //        } else {
+    //            logMessage("Invalid Wi-Fi toggle command: " + togglePattern);
+    //        }
+    //    } else {
+    //        logMessage("Wi-Fi command missing required argument.");
+    //    }
+    //
     } else if (commandName == "refresh") {
         if (cmd.size() == 1)
             refreshPage = true;
