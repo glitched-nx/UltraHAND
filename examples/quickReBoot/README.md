@@ -1,83 +1,144 @@
-<p align="center">
-  <img src="https://github.com/glitched-nx/UltraHAND/blob/f610f814128f2b1932efac899211011b4359bd82/examples/quickReBoot/quickReBoot_banner.png?raw=true" alt="Banner">
-</p>
+![Banner](/examples/quickReBoot/quickReBoot_banner.png?raw=true)
 
-<h2 align="center">Ultrahand Overlay - quickReBoot Package</h2>
+<h2 align="center" style="color:#3e60ee;">Ultrahand Overlay - Custom Package</h2>
 
-- This package provides commands to reboot the Hekate boot entry, INI-file configs. It alows a quick reboot to another system like Stock, Android, Lakka and other. Reboot to a payload like TegraExplorer etc. or quick reboot the current CFW Atmosphere emuMMC/sysMMC.
-- quick ReBoot to Hekate UMS - Mount the Switch SD-Card as a USB Mass Storage Device.
+- This custom package contains predefined reboot commands referring to boot/INI configuration entries required by the `Hekate Bootloader`. It performs an instant reboot from the current Atmosphere CFW directly to your selection via the `Ultrahand Overlay` menu.
 
-<h2 align="center">How to Use - quickReBoot</h2>
+  - Reboot to another configured Switch OS, such as Stock OFW, LineageOS, Lakka, Linux, etc.
+  - Reboot to payload binaries like TegraExplorer, Lockpick_RCM, Payload Tools, etc.
+  - Perform a direct reboot to the current Atmosphere CFW or between emuMMC/sysMMC.
+  - Reboot to Hekate UMS:
+    - Mount the Switch SD-Card as a USB Mass Storage Device.
 
-- To use quickReBoot, first open the Ultrahand Overlay menu using your configured or the default **Key Combo** **`L+DDOWN+RS`**. In the Ultrahand Overlay, press the **`Right -> direction Button`** on the left Joy-Con, where you should find quickReBoot. Open it to access the quickReBoot menu.
+<h2 align="center" style="color:#3e60ee;">How to Use quickReBoot?</h2>
 
-- To verify if the reboots are functioning correctly, select an option, and the reboot will be executed. If Hekate loads instead of your chosen target, the configuration of the quickReBoot `package.ini` is likely incorrect and needs adjustment.
+- First, open the Ultrahand Overlay menu by pressing your configured **Key Combo** or the default **`L+DDOWN+RS`**.
+  - In the Ultrahand Overlay, press the **`Right > direction Button`** on the left Joy-Con to navigate to the Package menu, where you will find quickReBoot. Press **`A`** on the Package to open the quickReBoot menu.
 
-- The following guide should help you better understand quickReBoot, resolve this and other issues, and make necessary adjustments to match your own Hekate boot configurations.
+- If you have integrated Ultrahand Overlay into your setup, you can customize the quickReBoot package to match your Hekate Bootloader configurations.
 
-<h2 align="center">Configuration Guide</h2>
+- The following guide should help you better understand the configurations, reboot boot commands, reboot INI commands, payloads, and other configurations in quickReBoot, or your own Ultrahand Overlay Package creation.
 
-- To configure quickReBoot, the file `package.ini` located in `sdmc:/switch/.packages/quickReBoot/` on the SD Card can be edited with a text editor according to the following config examples.
+<h1 align="center" style="color:#3e60ee;">quickReBoot > Konfigurations-Anleitung</h1>
 
----
+<h4 align="center" style="color:#3e60ee;">Hekate Bootloader - Examples for Boot Configuration Entries & Boot INI Files with Boot Configuration Entry</h4>
 
-<h3 align="center">quickReBoot - Hekate bootloader - boot entries</h2>
-
-#### `hekate_ipl.ini` boot-config entries located in path `sdmc:/bootloader/`
+* * ### Boot Config Entries > [hekate_ipl.ini](*) > Path: [sdmc:/bootloader/](*)
 
 ```ini
-[Stock]                   <--- [X]
+[Stock(OFW)]
 fss0=atmosphere/package3
 stock=1
 emummc_force_disable=1
 
-[Atmosphere (emuMMC)]     <--- [XY]
+[AMS(emuMMC)]
 fss0=atmosphere/package3
 emummcforce=1
 atmosphere=1
 
-[Atmosphere (sysMMC)]     <--- [XYZ]
+[AMS(emuMMC)]
 fss0=atmosphere/package3
 atmosphere=1
 emummc_force_disable=1
 ```
 
+### Boot-config entry edited in [android.ini](*) located in path [sdmc:/bootloader/ini/](*)
+
+```ini
+[LineageOS]
+l4t=1
+boot_prefixes=switchroot/android/
+id=SWANDR
+icon=switchroot/android/icon_android_hue.bmp
+logopath=switchroot/android/bootlogo_android.bmp
+r2p_action=self
+ddr200_enable=1
+
+[Lakka]
+l4t=1
+boot_prefixes=lakka/boot/
+id=SWR-LAK
+icon=lakka/boot/icon_lakka_hue.bmp
+logopath=lakka/boot/splash.bmp
+r2p_action=self
+```
+
+<h2 align="center" style="color:#3e60ee;">package.ini - boot commands</h2>
+
+- ### Package-configs edited in [package.ini](*) located in path [sdmc:/switch/.packages/quickReBoot/](*)
+
+```ini
+[<<>> quickReBoot <<>>]
+
+[Mount UMS SD-Card >>]
+reboot UMS
+
+[Reboot >> Hekate]
+reboot
+
+[quick >> Shutdown]
+shutdown
+
+
+[ReBoot > Boot-Entry >>]
+
+[Stock OFW]
+reboot boot Stock
+
+[Atmo emuMMC]
+reboot boot Atmo EMU
+
+[Atmo sysMMC]
+reboot boot Atmo SYS
+
+
+[ReBoot > Boot-INI >>]
+
+[LineageOS 21 / Android 14]
+reboot ini LineageOS
+
+[LaKKa]
+reboot ini Lakka
+
+
+[ReBoot > Payload]
+
+[TegraExplorer]
+reboot /bootloader/payloads/TegraExplorer.bin
+
+[Reboot > Update]
+reboot /bootloader/update.bin
+```
+
 ---
 
-- `[OFW Stock]`
-  - Custom label as it displays in the Ultrahand Overlay menu. `OFW Stock` refers to reboot directly into the Nintendo Switch - Stock Firmware.
+- `[Stock OFW]`
+  - Custom label as it displays in the Ultrahand Overlay menu. `Stock OFW` refers to reboot directly into the Nintendo Switch -`Original Stock Firmware`.
 
-    - `HOS` = `Horizon OS` = `Nintendo Switch - Original Firmware` = `OFW` = `Stock`
+    - `HOS` = `Horizon OS` = `Nintendo Switch - Original Stock Firmware` = `OFW` = `Stock`
 
 - `reboot`
-  - reboot command
+  - Command
 
 - `boot`
   - Points to the Hekate boot-config entry located in `sdmc:/bootloader/hekate_ipl.ini`.
 
-- `Stock`
-  - Refers to the custom label defined in the `hekate_ipl.ini` file under the boot configuration entry `[Stock]`. This label name is included in the `package.ini` without brackets.
+- `Stock (OFW)`
+  - Refers to the custom label defined in the `hekate_ipl.ini` file under the boot configuration entry `[Stock (OFW)]`. This label name is included in the `package.ini` without [square brackets]
 
 - #### Note:
 
   - The label name must match exactly; otherwise, the boot entry will not be recognized and Hekate will be loaded
-
-#### --> sdmc:/switch/.packages/quickReBoot/`package.ini`
-
-```ini
-[OFW Stock]
-reboot boot Stock       <--- X
-```
 
 ---
 
 - `[Atmosphere emuMMC]`
   - Custom label as it displays in the overlay menu. Refers to reboot directly into `Atmosphere emuMMC`. If this is the current system you want to reboot from, it will perform a direct reboot.
 
-    - `AMS` = `Atmosphère NX` = `Nintendo Switch - Custom Firmware` = `CFW`
+    - `CFW` = `Custom Firmware` = `Atmosphère` = `AMS` =-> `NX` = `Switch Codename`
 
 - `reboot`
-  - **reboot command**
+  - Command
 
 - `boot`
   - Points to the Hekate boot-config entries in `sdmc:/bootloader/hekate_ipl.ini`.
@@ -85,16 +146,9 @@ reboot boot Stock       <--- X
 - `Atmosphere (emuMMC)`
   - Refers to the custom label defined in the `hekate_ipl.ini` file under the boot configuration entry `[Atmosphere (emuMMC)]`. This label name is included in the `package.ini` without brackets.
 
-- #### Remember Note
+- #### Please note:
 
   - The label name must match exactly; otherwise, the boot entry will not be recognized and Hekate will be loaded
-
-#### --> sdmc:/switch/.packages/quickReBoot/`package.ini`
-
-```ini
-[Atmosphere emuMMC]
-reboot boot Atmosphere (emuMMC)
-```
 
 ---
 
@@ -103,7 +157,7 @@ reboot boot Atmosphere (emuMMC)
 - `[LineageOS (Android)]` -> Custom label as it displays in the overlay menu. Refers to reboot directly into `LineageOS (Android)`.
 
 - `reboot`
-  - **reboot command**
+  - Command
 
 - `ini`
   - Points to the INI-files in the `sdmc:/bootloader/ini/` directory.
@@ -122,34 +176,23 @@ reboot ini LineageOS
 
   - The file name `android.ini` is user-defined and can be chosen freely
 
-#### Hekate ini-config: `sdmc:/bootloader/ini/android.ini`
-
-```ini
-[LineageOS]
-l4t=1
-boot_prefixes=switchroot/android/
-id=SWANDR
-r2p_action=bootloader
-ddr200_enable=1
-```
-
 ---
 
-<h3 align="center">quickReBoot - Payload BIN-file</h3>
-
-- `[TegraExplorer]`
-  - Custom label as it appears in the Ultrahand Overlay.
-
-- `reboot`
-  - ****reboot command****
-
-- `/Path/to/the/BIN-file/s/`
-  - Custom located on the SD Card. The preconfigured quickReBoot command allow a direct reboot to a payload from Ultrahand Overlay.
+<h3 align="center" style="color:#3e60ee;">quickReBoot - Payload BIN-file</h3>
 
 ```ini
 [TegraExplorer]
 reboot /bootloader/payloads/TegraExplorer.bin
 ```
+
+- `[TegraExplorer]`
+  - Custom label as it appears in the Ultrahand Overlay.
+
+- `reboot`
+  - **reboot command**
+
+- `/Path/to/the/BIN-file/s/`
+  - Custom located on the SD Card. The preconfigured quickReBoot command allow a direct reboot to a payload from Ultrahand Overlay.
 
 ---
 
