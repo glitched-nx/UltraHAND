@@ -23,31 +23,3 @@ Wenn Du neu beim Ultrahand Overlay bist, hier ist, wie Du anfangen kannst:
 ## Beiträge
 
 Beiträge und Vorschläge aus der Ultrahand-Community sind willkommen. Wenn Du Ideen, Verbesserungen oder Fragen hast, zögere nicht, [Kontakt aufzunehmen](https://gbatemp.net/threads/ultrahand-overlay-the-fully-craft-able-overlay-executor.633560/).
-
----
-
-## Ultrahand Overlay Wiki
-
-Ultrahand Overlay is your go-to tool for enhanced file and directory management on your SD card, designed to provide you with greater control over your configurations and data. This wiki is here to help you get started and make the most out of Ultrahand Overlay.
-
-## Wiki Pages
-
-Explore the wealth of information available in this wiki:
-
-- **[Command Reference](https://github.com/ppkantorski/Ultrahand-Overlay/wiki/Command-Reference):** A comprehensive list of commands supported by Ultrahand Overlay, each with clear instructions on how to use them effectively.
-
-- **[Package Reference](https://github.com/ppkantorski/Ultrahand-Overlay/wiki/Package-Reference):** Learn how to configure packages, customize settings, and make the most of Ultrahand Overlay's powerful features.
-
-## Getting Started
-
-If you're new to Ultrahand Overlay, here's how to get started:
-
-1. For help with understanding the available commands and how to use them, please refer to [Command Reference](https://github.com/ppkantorski/Ultrahand-Overlay/wiki/Command-Reference).
-
-2. For help with formatting your own custom Ultrahand packages, please refer to [Package Configurations](https://github.com/ppkantorski/Ultrahand-Overlay/wiki/Package-Reference).
-
-3. For more complex Ultrahand package examples and implementations, please check out [Examples](https://github.com/ppkantorski/Ultrahand-Overlay/tree/main/examples).
-
-## Contributions
-
-Contributions and suggestions from the Ultrahand community are welcome. If you have ideas, improvements, or questions, please don't hesitate to [get in touch](https://gbatemp.net/threads/ultrahand-overlay-the-fully-craft-able-overlay-executor.633560/).
