@@ -38,14 +38,14 @@ delete /switch/.packages/example4/
 
 [INI-Datei bearbeiten]
 copy /bootloader/hekate_ipl.ini /switch/.packages/
-set-ini-val /switch/.packages/hekate_ipl.ini 'Atmosphere' fss0 gonnawritesomethingelse
+set-ini-val /switch/.packages/hekate_ipl.ini 'Atmosphere' fss0 schreibeetwasanderes
 set-ini-val ​/switch/.packages/hekate_ipl.ini 'Atmosphere' booty true
 
-[Paketinformationen]
+[Package Info]
 ```
 
 Du kannst eigene Abschnitte und Befehle hinzufügen, um die von Ultrahand ausgeführten Aktionen anzupassen.
 
 Hinweis: Die in den Befehlen angegebenen Pfade sollten relativ zum Stammverzeichnis der SD-Karte sein und mit einem / enden.
 
-Für komplexere Ultrahand-Paketbeispiele und Implementierungen, schaue bitte bei den [Beispielen](https://github.com/ppkantorski/Ultrahand-Overlay/tree/main/examples) vorbei.
+Für komplexere Ultrahand-Paketbeispiele und Implementierungen, schaue bitte bei [Examples](https://github.com/glitched-nx/ultrahand/tree/main/examples) vorbei.

@@ -143,7 +143,7 @@ Ultrahand unterstützt derzeit die folgenden Befehle:
   - `jsonPath`: Der Dateipfad zur JSON-Datenquelle.
   - `jsonKey`: Ein optionaler Schlüssel innerhalb der JSON-Daten für spezifische Datenabrufung.
 
-  - Für Informationen zu `json_file_source`-Funktionsimplementierungen, siehe bitte das [Easy Installer](https://github.com/ppkantorski/Ultrahand-Overlay/tree/main/examples/Easy%20Installer)-Paketbeispiel.
+  - Für Informationen zu `json_file_source`-Funktionsimplementierungen, siehe bitte das [Easy Installer](https://github.com/glitched-nx/ultrahand/tree/main/examples/Easy%20Installer)-Paketbeispiel.
 
 ## Platzhalterfunktionen
 
