@@ -14,11 +14,11 @@ Entdecke die Fülle an Informationen, die in diesem Wiki verfügbar sind:
 
 Wenn Du neu beim Ultrahand Overlay bist, hier ist, wie Du anfangen kannst:
 
-1. Um die verfügbaren Befehle und deren Anwendung zu verstehen, schaue bitte in die [Befehl-Referenz](https://github.com/glitched-nx/Ultrahand/wiki/Befehl-Referenz).
+1. Um die verfügbaren Befehle und deren Anwendung zu verstehen, schaue bitte in [Befehl-Referenz](https://github.com/glitched-nx/Ultrahand/wiki/Befehl-Referenz).
 
-2. Für Hilfe beim Formatieren Deiner eigenen benutzerdefinierten Ultrahand-Pakete, siehe bitte die [Paket-Referenz](https://github.com/glitched-nx/Ultrahand/wiki/Paket-Referenz).
+2. Für Hilfe beim Formatieren Deiner eigenen benutzerdefinierten Ultrahand-Pakete, siehe bitte [Paket-Referenz](https://github.com/glitched-nx/Ultrahand/wiki/Paket-Referenz).
 
-3. Für komplexere Ultrahand-Paketbeispiele und Implementierungen, schaue bitte bei den [Examples](https://github.com/glitched-nx/Ultrahand/tree/main/examples) vorbei.
+3. Für komplexere Ultrahand-Paketbeispiele und Implementierungen, schaue bitte bei [Examples](https://github.com/glitched-nx/Ultrahand/tree/main/examples) vorbei.
 
 ## Beiträge
 
