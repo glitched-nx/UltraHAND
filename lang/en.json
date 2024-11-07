@@ -50,7 +50,7 @@
     "DEVICE_INFO": "Device Info",
     "FIRMWARE": "Firmware | CFW",
     "BOOTLOADER": "Bootloader",
-    "HARDWARE": "Hardware | SoC",
+    "HARDWARE": "SKU | SoC",
     "MEMORY": "SDRAM",
     "VENDOR": "Vendor",
     "MODEL": "DRAM-ID",
