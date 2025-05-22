@@ -1,9 +1,7 @@
-.vscode/**/*
+.vscode/
 build
 SD_OUT
 SD_OUT_blue
 ovlmenu.elf
 ovlmenu.nacp
 ovlmenu.ovl
-extra/ultrahand_release_notes.md
-extra/github_release_note_picker.py
