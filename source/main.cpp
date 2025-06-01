@@ -51,6 +51,8 @@ static bool inPackageMenu = false;
 static bool inSubPackageMenu = false;
 static bool inScriptMenu = false;
 static bool inSelectionMenu = false;
+
+
 //static bool currentMenuLoaded = true;
 static bool freshSpawn = true;
 //static bool refreshPage = false; //moved to libtesla
@@ -66,7 +68,7 @@ static size_t nestedMenuCount = 0;
 // Command mode globals
 static const std::vector<std::string> commandSystems = {DEFAULT_STR, ERISTA_STR, MARIKO_STR};
 static const std::vector<std::string> commandModes = {DEFAULT_STR, SLOT_STR, TOGGLE_STR, OPTION_STR, FORWARDER_STR, TEXT_STR, TABLE_STR, TRACKBAR_STR, STEP_TRACKBAR_STR, NAMED_STEP_TRACKBAR_STR};
-static const std::vector<std::string> commandGroupings = {DEFAULT_STR, "split", "split2", "split3", "split4"};
+static const std::vector<std::string> commandGroupings = {DEFAULT_STR, "split", "split2", "split3", "split4", "split5"};
 static const std::string MODE_PATTERN = ";mode=";
 static const std::string GROUPING_PATTERN = ";grouping=";
 static const std::string SYSTEM_PATTERN = ";system=";
@@ -156,13 +158,13 @@ void shiftItemFocus(tsl::elm::Element* element) {
  * This function processes the progression of download, unzip, and copy operations,
  * updates the user interface accordingly, and handles the thread failure and abort conditions.
  *
- * @param keysHeld A bitset representing keys that are held down.
+ * @param keysDown A bitset representing keys that are pressed down.
  * @param stillTouching Boolean indicating if the touchscreen is being interacted with.
  * @param lastSelectedListItem Reference to the UI element displaying the current status.
  * @param commandSuccess Reference to a boolean tracking the overall command success.
  * @return `true` if the operation needs to abort, `false` otherwise.
  */
-bool handleRunningInterpreter(uint64_t& keysHeld) {
+bool handleRunningInterpreter(uint64_t& keysDown) {
     static std::string lastSymbol;
     static int lastPercentage = -1;
     static bool inProgress = true;
@@ -208,7 +210,7 @@ bool handleRunningInterpreter(uint64_t& keysHeld) {
         commandSuccess = false;
     }
 
-    if ((keysHeld & KEY_R) && !(keysHeld & ~KEY_R & ALL_KEYS_MASK) && !stillTouching) {
+    if ((keysDown & KEY_R) && !(keysDown & ~KEY_R & ALL_KEYS_MASK) && !stillTouching) {
         commandSuccess = false;
         abortDownload.store(true, std::memory_order_release);
         abortUnzip.store(true, std::memory_order_release);
@@ -910,7 +912,7 @@ public:
 
     virtual bool handleInput(u64 keysDown, u64 keysHeld, touchPosition touchInput, JoystickPosition leftJoyStick, JoystickPosition rightJoyStick) override {
         if (runningInterpreter.load(std::memory_order_acquire)) {
-            return handleRunningInterpreter(keysHeld);
+            return handleRunningInterpreter(keysDown);
         }
         if (lastRunningInterpreter) {
             isDownloadCommand = false;
@@ -936,10 +938,10 @@ public:
                     simulatedMenuComplete = true;
                 }
                 if (simulatedBack && !simulatedBackComplete) {
-                    keysHeld |= KEY_B;
+                    keysDown |= KEY_B;
                     simulatedBack = false;
                 }
-                if ((keysHeld & KEY_B) && !stillTouching) {
+                if ((keysDown & KEY_B) && !stillTouching) {
                     allowSlide = unlockedSlide = false;
                     inSettingsMenu = false;
                     returningToMain = (lastMenu != "hiddenMenuMode");
@@ -960,10 +962,10 @@ public:
                 simulatedNextPageComplete = true;
             }
             if (simulatedBack && !simulatedBackComplete) {
-                keysHeld |= KEY_B;
+                keysDown |= KEY_B;
                 simulatedBack = false;
             }
-            if ((keysHeld & KEY_B) && !stillTouching) {
+            if ((keysDown & KEY_B) && !stillTouching) {
                 allowSlide = unlockedSlide = false;
                 inSubSettingsMenu = false;
                 returningToSettings = true;
@@ -978,7 +980,7 @@ public:
             }
         }
 
-        if (returningToSettings && !(keysHeld & KEY_B)) {
+        if (returningToSettings && !(keysDown & KEY_B)) {
             returningToSettings = false;
             inSettingsMenu = true;
             tsl::impl::parseOverlaySettings();
@@ -1199,7 +1201,7 @@ public:
     virtual bool handleInput(u64 keysDown, u64 keysHeld, touchPosition touchInput, JoystickPosition leftJoyStick, JoystickPosition rightJoyStick) override {
 
         if (runningInterpreter.load(std::memory_order_acquire)) {
-            return handleRunningInterpreter(keysHeld);
+            return handleRunningInterpreter(keysDown);
         }
         if (lastRunningInterpreter) {
             //while (!interpreterThreadExit.load(std::memory_order_acquire)) {svcSleepThread(50'000'000);}
@@ -1230,11 +1232,11 @@ public:
                 }
 
                 if (simulatedBack && !simulatedBackComplete) {
-                    keysHeld |= KEY_B;
+                    keysDown |= KEY_B;
                     simulatedBack = false;
                 }
 
-                if ((keysHeld & KEY_B) && !stillTouching) {
+                if ((keysDown & KEY_B) && !stillTouching) {
                     allowSlide = unlockedSlide = false;
                     inSettingsMenu = false;
                     if (lastMenu != "hiddenMenuMode")
@@ -1272,11 +1274,11 @@ public:
             }
 
             if (simulatedBack && !simulatedBackComplete) {
-                keysHeld |= KEY_B;
+                keysDown |= KEY_B;
                 simulatedBack = false;
             }
 
-            if ((keysHeld & KEY_B) && !stillTouching) {
+            if ((keysDown & KEY_B) && !stillTouching) {
                 allowSlide = unlockedSlide = false;
                 inSubSettingsMenu = false;
                 returningToSettings = true;
@@ -1288,7 +1290,7 @@ public:
         }
         
         
-        if (returningToSettings && !(keysHeld & KEY_B)){
+        if (returningToSettings && !(keysDown & KEY_B)){
             returningToSettings = false;
             inSettingsMenu = true;
         }
@@ -1462,8 +1464,11 @@ public:
 	        const bool usingBottomPivot = false;
 
             addDummyListItem(list);
+
+            std::vector<std::vector<std::string>> dummyTableData;
+
 	        // Draw the table using the sectionLines and empty infoLines
-	        drawTable(list, sectionLines, infoLines, tableColumnOffset, tableStartGap, tableEndGap, tableSpacing,
+	        drawTable(list, dummyTableData, sectionLines, infoLines, tableColumnOffset, tableStartGap, tableEndGap, tableSpacing,
 	                  tableSectionTextColor, tableInfoTextColor, tableInfoTextColor, tableAlignment, hideTableBackground, useHeaderIndent, isScrollableTable, wrappingMode, useWrappedTextIndent);
 
             if (usingBottomPivot) {
@@ -1482,7 +1487,7 @@ public:
     }
 
     virtual bool handleInput(u64 keysDown, u64 keysHeld, touchPosition touchInput, JoystickPosition leftJoyStick, JoystickPosition rightJoyStick) override {
-        if (runningInterpreter.load(std::memory_order_acquire)) return handleRunningInterpreter(keysHeld);
+        if (runningInterpreter.load(std::memory_order_acquire)) return handleRunningInterpreter(keysDown);
         if (lastRunningInterpreter) {
             isDownloadCommand = false;
             lastSelectedListItem->setValue(commandSuccess ? CHECKMARK_SYMBOL : CROSSMARK_SYMBOL);
@@ -1501,10 +1506,10 @@ public:
                 simulatedMenuComplete = true;
             }
             if (simulatedBack && !simulatedBackComplete) {
-                keysHeld |= KEY_B;
+                keysDown |= KEY_B;
                 simulatedBack = false;
             }
-            if ((keysHeld & KEY_B) && !stillTouching) {
+            if ((keysDown & KEY_B) && !stillTouching) {
                 allowSlide = unlockedSlide = false;
                 inScriptMenu = false;
                 if (isFromPackage) {
@@ -1625,6 +1630,7 @@ private:
     std::string listString, listStringOn, listStringOff;
     std::string jsonString, jsonStringOn, jsonStringOff;
     std::vector<std::string> selectedItemsList;
+    std::string hexPath;
 
     bool isMini = false;
 
@@ -1650,9 +1656,39 @@ public:
         std::string filterEntry;
         std::vector<std::string> newFiles, newFilesOn, newFilesOff;
 
+        // Create a map with all non-button/arrow placeholders and their replacements
+        std::unordered_map<std::string, std::string> generalPlaceholders = {
+            {"{ram_vendor}", memoryVendor},
+            {"{ram_model}", memoryModel},
+            {"{ams_version}", amsVersion},
+            {"{hos_version}", hosVersion},
+            {"{cpu_speedo}", ult::to_string(cpuSpeedo0)},
+            {"{cpu_iddq}", ult::to_string(cpuIDDQ)},
+            {"{gpu_speedo}", ult::to_string(cpuSpeedo2)},
+            {"{gpu_iddq}", ult::to_string(gpuIDDQ)},
+            {"{soc_speedo}", ult::to_string(socSpeedo0)},
+            {"{soc_iddq}", ult::to_string(socIDDQ)},
+            {"{title_id}", getTitleIdAsString()}
+        };
         
 
         for (auto& cmd : commands) {
+            //if (currentSection == GLOBAL_STR)
+            //    applyPlaceholderReplacements(cmd, hexPath, iniPath, listString, listPath, jsonString, jsonPath);
+            //else if (currentSection == ON_STR)
+            //    applyPlaceholderReplacements(cmd, hexPath, iniPathOn, listStringOn, listPathOn, jsonStringOn, jsonPathOn);
+            //else if (currentSection == OFF_STR)
+            //    applyPlaceholderReplacements(cmd, hexPath, iniPathOff, listStringOff, listPathOff, jsonStringOff, jsonPathOff);
+
+            
+            for (auto& arg : cmd) {
+                // Replace general placeholders
+                replacePlaceholdersInArg(arg, generalPlaceholders);
+                
+                // Replace button/arrow placeholders from the global map
+                //replacePlaceholdersInArg(arg, symbolPlaceholders);
+            }
+
             commandName = cmd[0];
 
             if (stringToLowercase(commandName) == "erista:") {
@@ -1714,12 +1750,24 @@ public:
                             preprocessPath(filterEntry, filePath);
                         }
 
-                        if (currentSection == GLOBAL_STR)
-                            filterList.push_back(std::move(filterEntry));
-                        else if (currentSection == ON_STR)
-                            filterListOn.push_back(std::move(filterEntry));
-                        else if (currentSection == OFF_STR)
-                            filterListOff.push_back(std::move(filterEntry));
+                        if (filterEntry.find('*') != std::string::npos) {
+                            std::vector<std::string> matchedFiles = getFilesListByWildcards(filterEntry);
+                            for (const auto& file : matchedFiles) {
+                                if (currentSection == GLOBAL_STR)
+                                    filterList.push_back(file);
+                                else if (currentSection == ON_STR)
+                                    filterListOn.push_back(file);
+                                else if (currentSection == OFF_STR)
+                                    filterListOff.push_back(file);
+                            }
+                        } else {
+                            if (currentSection == GLOBAL_STR)
+                                filterList.push_back(std::move(filterEntry));
+                            else if (currentSection == ON_STR)
+                                filterListOn.push_back(std::move(filterEntry));
+                            else if (currentSection == OFF_STR)
+                                filterListOff.push_back(std::move(filterEntry));
+                        }
                     } else if (commandName == "file_source") {
                         sourceType = FILE_STR;
                         if (currentSection == GLOBAL_STR) {
@@ -2020,6 +2068,21 @@ public:
                         currentPackageHeader = groupingName;
                         lastGroupingName = groupingName;
                     }
+                } else if (commandGrouping == "split5") {
+                    groupingName = getParentDirNameFromPath(selectedItem);
+                    removeQuotes(groupingName);
+
+                    pos = groupingName.find(" - ");
+                    if (pos != std::string::npos) {
+                        itemName = groupingName.substr(pos + 3);
+                        groupingName = groupingName.substr(0, pos);
+                    }
+
+                    if (lastGroupingName.empty() || (lastGroupingName != groupingName)) {
+                        addHeader(list, groupingName);
+                        currentPackageHeader = groupingName;
+                        lastGroupingName = groupingName;
+                    }
                 }
             } else {
                 if (commandMode == TOGGLE_STR) {
@@ -2035,7 +2098,7 @@ public:
             }
 
             if (commandMode == DEFAULT_STR || commandMode == OPTION_STR) {
-                if (sourceType != FILE_STR && commandGrouping != "split2" && commandGrouping != "split3" && commandGrouping != "split4") {
+                if (sourceType != FILE_STR && commandGrouping != "split2" && commandGrouping != "split3" && commandGrouping != "split4" && commandGrouping != "split5") {
                     pos = selectedItem.find(" - ");
                     footer = "";
                     itemName = selectedItem;
@@ -2078,7 +2141,7 @@ public:
                     listItem->setValue(footer, true);
                 }
 
-                listItem->setClickListener([this, i, selectedItem, footer, listItemRaw = listItem.get(), _currentPackageHeader = currentPackageHeader](uint64_t keys) {
+                listItem->setClickListener([this, i, selectedItem, footer, listItemRaw = listItem.get(), _currentPackageHeader = currentPackageHeader, _itemName = itemName](uint64_t keys) {
                     //listItemPtr = std::shared_ptr<tsl::elm::ListItem>(listItem.get(), [](auto*) {})](uint64_t keys) {
 
                     if (runningInterpreter.load(std::memory_order_acquire)) {
@@ -2127,7 +2190,7 @@ public:
                         auto modifiedCmds = getSourceReplacement(commands, selectedItemsList[i], i, filePath);
                         applyPlaceholderReplacementsToCommands(modifiedCmds, filePath);
                         //tsl::changeTo<ScriptOverlay>(modifiedCmds, filePath, specificKey+" - "+ selectedItemsList[i], "selection");
-                        tsl::changeTo<ScriptOverlay>(modifiedCmds, filePath, getNameFromPath(selectedItemsList[i]), "selection", false, _currentPackageHeader);
+                        tsl::changeTo<ScriptOverlay>(modifiedCmds, filePath, _itemName, "selection", false, _currentPackageHeader);
                         return true;
                     }
 
@@ -2153,60 +2216,28 @@ public:
                     auto modifiedCmds = getSourceReplacement(!state ? commandsOn : commandsOff, currentSelectedItems[i], i, filePath);
                     //auto modifiedCmdsCopy = modifiedCmds;
                     //interpretAndExecuteCommands(std::move(modifiedCmds), filePath, specificKey);
-                    
+                                        
                     if (sourceType == FILE_STR) {
-                        // Reset variables
-                        std::string selectedFileName;
                         std::string updatedFileSource;
-                        
-                        // Extract the destination directory from the move command
+                    
+                        // Extract the file_source pattern string
                         for (const auto& cmd : modifiedCmds) {
-                            if (cmd.size() > 1 && cmd[0] == "file_name") {
-                                selectedFileName = cmd[1];
-                                //logMessage("Selected file name: " + selectedFileName);
-                                break; // Assuming there's only one move command at the end
+                            if (cmd.size() > 1 && cmd[0] == "sourced_path") {
+                                updatedFileSource = cmd[1];
+                                break;
                             }
                         }
-                        
-                        if (!selectedFileName.empty()) {
-                            for (const auto& arg : !state ? commandsOff : commandsOn) {
-                                if (arg.size() > 1 && arg[0] == "file_source") {
-                                    updatedFileSource = arg[1];
-                                    break;
-                                }
-                            }
-                            
-                            //logMessage("Original file source: " + updatedFileSource);
-                            
-                            // Replace the filename / folder name wildcard placeholder (rightmost) within updatedFileSource with the selectedFileName
-                            size_t pos = updatedFileSource.rfind('*');
-                            if (pos != std::string::npos) {
-                                std::string prefix = updatedFileSource.substr(0, pos);
-                                std::string suffix = updatedFileSource.substr(pos + 1);
-                                
-                                // Check if suffix contains a file extension
-                                size_t extPos = selectedFileName.find('.');
-                                if (extPos != std::string::npos) {
-                                    // It's a file, include the file extension
-                                    updatedFileSource = prefix + selectedFileName + suffix;
-                                } else {
-                                    // It's a folder, exclude the file extension if present in the suffix
-                                    size_t extSuffixPos = suffix.find('.');
-                                    if (extSuffixPos != std::string::npos) {
-                                        updatedFileSource = prefix + selectedFileName + suffix.substr(extSuffixPos);
-                                    } else {
-                                        updatedFileSource = prefix + selectedFileName + suffix;
-                                    }
-                                }
-                                currentSelectedItems[i] = updatedFileSource;
-                                
-                                // Debug logging
-                                //logMessage("Updated file source for index " + ult::to_string(i) + ": " + updatedFileSource);
-                            } else {
-                                //logMessage("Wildcard '*' not found in file source.");
-                            }
+                    
+                        if (!updatedFileSource.empty()) {
+                            // Here you fully resolve wildcards in updatedFileSource to the actual path,
+                            // presumably done by getSourceReplacement already.
+                            // So just assign:
+                            currentSelectedItems[i] = updatedFileSource;
+                    
+                            // Optionally log for debugging:
+                            // logMessage("Updated currentSelectedItems[" + std::to_string(i) + "]: " + updatedFileSource);
                         } else {
-                            //logMessage("Selected file name is empty.");
+                            // logMessage("file_source missing in modifiedCmds");
                         }
                     }
                     interpretAndExecuteCommands(std::move(modifiedCmds), filePath, specificKey);
@@ -2214,18 +2245,35 @@ public:
                 });
                 
 				// Set the script key listener (for SCRIPT_KEY)
-				toggleListItem->setScriptKeyListener([this, i, _currentPackageHeader = currentPackageHeader](bool state) {
+				toggleListItem->setScriptKeyListener([this, i, _currentPackageHeader = currentPackageHeader, _itemName = itemName](bool state) {
                     // Initialize currentSelectedItem for this index if it does not exist
                     if (isInitialized.find(i) == isInitialized.end() || !isInitialized[i]) {
                         currentSelectedItems[i] = selectedItemsList[i];
                         isInitialized[i] = true;
                     }
-
+                    
 					inSelectionMenu = false;
+                    
+                    auto modifiedCmds = !state ? commandsOn : commandsOff;
+                    // Optional: re-extract file_source here too if needed
+                    if (sourceType == FILE_STR) {
+                        std::string updatedFileSource;
+                        for (const auto& cmd : modifiedCmds) {
+                            if (cmd.size() > 1 && cmd[0] == "sourced_path") {
+                                updatedFileSource = cmd[1];
+                                break;
+                            }
+                        }
+                        if (!updatedFileSource.empty()) {
+                            currentSelectedItems[i] = updatedFileSource;
+                        }
+                    }
+
+
 				    // Custom logic for SCRIPT_KEY handling
-				    auto modifiedCmds = getSourceReplacement(state ? commandsOn : commandsOff, currentSelectedItems[i], i, filePath);
+				    modifiedCmds = getSourceReplacement(modifiedCmds, currentSelectedItems[i], i, filePath);
 				    applyPlaceholderReplacementsToCommands(modifiedCmds, filePath);
-				    tsl::changeTo<ScriptOverlay>(modifiedCmds, filePath, getNameFromPath(selectedItemsList[i]), "selection", false, _currentPackageHeader);
+				    tsl::changeTo<ScriptOverlay>(modifiedCmds, filePath, _itemName, "selection", false, _currentPackageHeader);
 				});
 
                 
@@ -2282,7 +2330,7 @@ public:
 
     virtual bool handleInput(u64 keysDown, u64 keysHeld, touchPosition touchInput, JoystickPosition leftJoyStick, JoystickPosition rightJoyStick) override {
         if (runningInterpreter.load(std::memory_order_acquire)) {
-            return handleRunningInterpreter(keysHeld);
+            return handleRunningInterpreter(keysDown);
         }
         if (lastRunningInterpreter) {
             isDownloadCommand = false;
@@ -2351,11 +2399,11 @@ public:
             }
 
             if (simulatedBack && !simulatedBackComplete) {
-                keysHeld |= KEY_B;
+                keysDown |= KEY_B;
                 simulatedBack = false;
             }
 
-            if ((keysHeld & KEY_B) && !stillTouching) {
+            if ((keysDown & KEY_B) && !stillTouching) {
                 allowSlide = unlockedSlide = false;
 
                 inSelectionMenu = false;
@@ -2387,7 +2435,7 @@ public:
             }
         }
 
-		if (returningToSelectionMenu && !(keysHeld & KEY_B)){
+		if (returningToSelectionMenu && !(keysDown & KEY_B)){
             returningToSelectionMenu = false;
             inSelectionMenu = true;
         }
@@ -2500,6 +2548,8 @@ bool drawCommandsMenu(std::unique_ptr<tsl::elm::List>& list,
     std::string jsonPath, jsonPathOn, jsonPathOff;
     std::string jsonKey, jsonKeyOn, jsonKeyOff;
     
+    std::string iniFilePath;
+
     std::string optionName;
     std::vector<std::vector<std::string>> commands, commandsOn, commandsOff;
     std::vector<std::vector<std::string>> tableData;
@@ -2545,6 +2595,22 @@ bool drawCommandsMenu(std::unique_ptr<tsl::elm::List>& list,
     std::string lastPackageHeader;
 
     bool isMini;
+
+    // Create a map with all non-button/arrow placeholders and their replacements
+    std::unordered_map<std::string, std::string> generalPlaceholders = {
+        {"{ram_vendor}", memoryVendor},
+        {"{ram_model}", memoryModel},
+        {"{ams_version}", amsVersion},
+        {"{hos_version}", hosVersion},
+        {"{cpu_speedo}", ult::to_string(cpuSpeedo0)},
+        {"{cpu_iddq}", ult::to_string(cpuIDDQ)},
+        {"{gpu_speedo}", ult::to_string(cpuSpeedo2)},
+        {"{gpu_iddq}", ult::to_string(gpuIDDQ)},
+        {"{soc_speedo}", ult::to_string(socSpeedo0)},
+        {"{soc_iddq}", ult::to_string(socIDDQ)},
+        {"{title_id}", getTitleIdAsString()}
+    };
+
 
     for (size_t i = 0; i < options.size(); ++i) {
         auto& option = options[i];
@@ -2790,8 +2856,20 @@ bool drawCommandsMenu(std::unique_ptr<tsl::elm::List>& list,
             //    commands.end());
             removeEmptyCommands(commands);
             
+            //std::string hexPath, listString, listPath, jsonString, jsonPath; // passed as dummy variables
+
             // Initial processing of commands (DUPLICATE CODE)
-            for (const auto& cmd : commands) {
+            for (auto& cmd : commands) {
+                for (auto& arg : cmd) {
+                    // Replace general placeholders
+                    replacePlaceholdersInArg(arg, generalPlaceholders);
+                    
+                    // Replace button/arrow placeholders from the global map
+                    //replacePlaceholdersInArg(arg, symbolPlaceholders);
+                }
+                
+                //applyPlaceholderReplacements(cmd, hexPath, iniFilePath, listString, listPath, jsonString, jsonPath);
+
                 commandName = cmd[0];
                 
                 commandNameLower = stringToLowercase(commandName);
@@ -2924,7 +3002,10 @@ bool drawCommandsMenu(std::unique_ptr<tsl::elm::List>& list,
                     }
                     
                     if (cmd.size() > 1) {
-                        if (commandName == "file_source") {
+                        if (commandName == "ini_file") {
+                            iniFilePath = cmd[1];
+                            preprocessPath(iniFilePath, packagePath);
+                        } else if (commandName == "file_source") {
                             if (currentSection == GLOBAL_STR) {
                                 pathPattern = cmd[1];
                                 preprocessPath(pathPattern, packagePath);
@@ -3014,6 +3095,7 @@ bool drawCommandsMenu(std::unique_ptr<tsl::elm::List>& list,
 
                         addDummyListItem(list);
                     }
+
 
                     addTable(list, tableData, packagePath, tableColumnOffset, tableStartGap, tableEndGap, tableSpacing,
                     	tableSectionTextColor, tableInfoTextColor, tableInfoTextColor, tableAlignment, hideTableBackground, useHeaderIndent, isScrollableTable, tableWrappingMode, useWrappingIndent);
@@ -3296,7 +3378,7 @@ bool drawCommandsMenu(std::unique_ptr<tsl::elm::List>& list,
                         const std::string& forwarderPackagePath = getParentDirFromPath(packageSource);
                         const std::string& forwarderPackageIniName = getNameFromPath(packageSource);
                         listItem->setClickListener([commands, keyName = option.first, dropdownSection, packagePath, listItemRaw = listItem.get(),
-                        	forwarderPackagePath, forwarderPackageIniName, _lastPackageHeader = lastPackageHeader](s64 keys) mutable {
+                        	forwarderPackagePath, forwarderPackageIniName, _lastPackageHeader = lastPackageHeader, i](s64 keys) mutable {
                             if (simulatedSelect && !simulatedSelectComplete) {
                                 keys |= KEY_A;
                                 simulatedSelect = false;
@@ -3305,8 +3387,8 @@ bool drawCommandsMenu(std::unique_ptr<tsl::elm::List>& list,
                             if (keys & KEY_A) {
                                 //auto commandsCopy = commands;
                                 //interpretAndExecuteCommands(std::move(commandsCopy), packagePath, keyName); // Now correctly moved
-                                //interpretAndExecuteCommands(getSourceReplacement(commands, keyName, i, packagePath), packagePath, keyName); // Now correctly moved
-                                interpretAndExecuteCommands(std::move(std::vector<std::vector<std::string>>(commands)), packagePath, keyName);
+                                auto modifiedCmds = getSourceReplacement(commands, keyName, i, packagePath); // Now correctly moved
+                                interpretAndExecuteCommands(std::move(modifiedCmds), packagePath, keyName);
                                 resetPercentages();
 
                                 nestedMenuCount++;
@@ -3342,12 +3424,12 @@ bool drawCommandsMenu(std::unique_ptr<tsl::elm::List>& list,
                                     lastMenu = "subPackageMenu";
                                 }
 
-                                //auto modifiedCmds = commands;//getSourceReplacement(commands, keyName, i, packagePath);
+                                auto modifiedCmds = getSourceReplacement(commands, keyName, i, packagePath);
                                 //applyPlaceholderReplacementsToCommands(modifiedCmds);
                                 std::string selectionItem = keyName;
                                 removeTag(selectionItem);
                                 // add lines ;mode=forwarder and package_source 'forwarderPackagePath' to front of modifiedCmds
-                                tsl::changeTo<ScriptOverlay>(commands, packagePath, selectionItem, isFromMainMenu ? "main" : "package", true, _lastPackageHeader);
+                                tsl::changeTo<ScriptOverlay>(modifiedCmds, packagePath, selectionItem, isFromMainMenu ? "main" : "package", true, _lastPackageHeader);
                                 return true;
                             }
                             return false;
@@ -3360,7 +3442,7 @@ bool drawCommandsMenu(std::unique_ptr<tsl::elm::List>& list,
                         //listItem->setValue("TEST", true);
                         //std::vector<std::vector<std::string>> modifiedCommands = getModifyCommands(option.second, pathReplace);
                         listItem->setClickListener([commands, keyName = option.first, dropdownSection, packagePath, packageName,
-                        	footer, lastSection, listItemRaw = listItem.get(), _lastPackageHeader = lastPackageHeader](uint64_t keys) {
+                        	footer, lastSection, listItemRaw = listItem.get(), _lastPackageHeader = lastPackageHeader, i](uint64_t keys) {
                             //listItemPtr = std::shared_ptr<tsl::elm::ListItem>(listItem.get(), [](auto*){})](uint64_t keys) {
                             
                             if (runningInterpreter.load(std::memory_order_acquire))
@@ -3414,11 +3496,11 @@ bool drawCommandsMenu(std::unique_ptr<tsl::elm::List>& list,
                                     lastMenu = "subPackageMenu";
                                 }
 
-                                //auto modifiedCmds = commands;//getSourceReplacement(commands, keyName, i, packagePath);
+                                auto modifiedCmds = getSourceReplacement(commands, keyName, i, packagePath);
                                 //applyPlaceholderReplacementsToCommands(modifiedCmds);
                                 std::string selectionItem = keyName;
                                 removeTag(selectionItem);
-                                tsl::changeTo<ScriptOverlay>(commands, packagePath, selectionItem, isFromMainMenu ? "main" : "package", true, _lastPackageHeader);
+                                tsl::changeTo<ScriptOverlay>(modifiedCmds, packagePath, selectionItem, isFromMainMenu ? "main" : "package", true, _lastPackageHeader);
                                 return true;
                             }
                             return false;
@@ -3775,7 +3857,7 @@ public:
     virtual bool handleInput(uint64_t keysDown, uint64_t keysHeld, touchPosition touchInput, JoystickPosition leftJoyStick, JoystickPosition rightJoyStick) override {
         
         if (runningInterpreter.load(std::memory_order_acquire)) {
-            return handleRunningInterpreter(keysHeld);
+            return handleRunningInterpreter(keysDown);
         }
         //if (lastRunningInterpreter) {
         //    //while (!interpreterThreadExit.load(std::memory_order_acquire)) {svcSleepThread(50'000'000);}
@@ -3885,11 +3967,11 @@ public:
             
             if (simulatedNextPage && !simulatedNextPageComplete) {
                 if (currentPage == LEFT_STR) {
-                    keysHeld |= KEY_DRIGHT;
+                    keysDown |= KEY_DRIGHT;
                     //simulatedNextPage = false;
                 }
                 else if (currentPage == RIGHT_STR) {
-                    keysHeld |= KEY_DLEFT;
+                    keysDown |= KEY_DLEFT;
                     //simulatedNextPage = false;
                 }
                 else {
@@ -3898,7 +3980,7 @@ public:
                 }
             }
             if (currentPage == LEFT_STR) {
-                if ((keysHeld & KEY_RIGHT) && !(keysHeld & ~KEY_RIGHT & ~KEY_R & ALL_KEYS_MASK) && !stillTouching && (((!allowSlide && onTrackBar && !unlockedSlide) || (keysHeld & KEY_R)) || !onTrackBar || simulatedNextPage)) {
+                if ((keysDown & KEY_RIGHT) && !(keysDown & ~KEY_RIGHT & ~KEY_R & ALL_KEYS_MASK) && !stillTouching && (((!allowSlide && onTrackBar && !unlockedSlide) || (keysDown & KEY_R)) || !onTrackBar || simulatedNextPage)) {
                     simulatedNextPage = false;
                     allowSlide = unlockedSlide = false;
                     lastPage = RIGHT_STR;
@@ -3911,7 +3993,7 @@ public:
                     return true;
                 }
             } else if (currentPage == RIGHT_STR) {
-                if ((keysHeld & KEY_LEFT) && !(keysHeld & ~KEY_LEFT & ~KEY_R & ALL_KEYS_MASK) && !stillTouching && (((!allowSlide && onTrackBar && !unlockedSlide) || (keysHeld & KEY_R)) || !onTrackBar || simulatedNextPage)) {
+                if ((keysDown & KEY_LEFT) && !(keysDown & ~KEY_LEFT & ~KEY_R & ALL_KEYS_MASK) && !stillTouching && (((!allowSlide && onTrackBar && !unlockedSlide) || (keysDown & KEY_R)) || !onTrackBar || simulatedNextPage)) {
                     simulatedNextPage = false;
                     allowSlide = unlockedSlide = false;
                     lastPage = LEFT_STR;
@@ -3940,10 +4022,10 @@ public:
             
             if (!usingPages || (usingPages && lastPage == LEFT_STR)) {
                 if (simulatedBack && !simulatedBackComplete) {
-                    keysHeld |= KEY_B;
+                    keysDown |= KEY_B;
                     simulatedBack = false;
                 }
-                if ((keysHeld & KEY_B) && !stillTouching) {
+                if ((keysDown & KEY_B) && !stillTouching) {
                     handleForwarderFooter();
 
                     allowSlide = unlockedSlide = false;
@@ -3975,10 +4057,10 @@ public:
                 }
             } else if (usingPages && lastPage == RIGHT_STR) {
                 if (simulatedBack && !simulatedBackComplete) {
-                    keysHeld |= KEY_B;
+                    keysDown |= KEY_B;
                     simulatedBack = false;
                 }
-                if ((keysHeld & KEY_B) && !stillTouching) {
+                if ((keysDown & KEY_B) && !stillTouching) {
                     handleForwarderFooter();
 
                     allowSlide = unlockedSlide = false;
@@ -4026,10 +4108,10 @@ public:
             
             if (!usingPages || (usingPages && lastPage == LEFT_STR)) {
                 if (simulatedBack && !simulatedBackComplete) {
-                    keysHeld |= KEY_B;
+                    keysDown |= KEY_B;
                     simulatedBack = false;
                 }
-                if ((keysHeld & KEY_B) && !stillTouching) {
+                if ((keysDown & KEY_B) && !stillTouching) {
                     handleForwarderFooter();
 
                     allowSlide = unlockedSlide = false;
@@ -4043,10 +4125,10 @@ public:
                 }
             } else if (usingPages && lastPage == RIGHT_STR) {
                 if (simulatedBack && !simulatedBackComplete) {
-                    keysHeld |= KEY_B;
+                    keysDown |= KEY_B;
                     simulatedBack = false;
                 }
-                if ((keysHeld & KEY_B) && !stillTouching) {
+                if ((keysDown & KEY_B) && !stillTouching) {
                     handleForwarderFooter();
 
                     allowSlide = unlockedSlide = false;
@@ -4061,22 +4143,26 @@ public:
                 }
             }
         }
-        if (returningToPackage && !returningToSubPackage && !(keysHeld & KEY_B)){
+        if (returningToPackage && !returningToSubPackage && !(keysDown & KEY_B)){
             //lastPackageMenu = "packageMenu";
             lastPackageMenu = "";
             returningToPackage = false;
+            returningToSubPackage = false;
             inPackageMenu = true;
+            inSubPackageMenu = false;
+            simulatedBackComplete = true;
             if (nestedMenuCount == 0 && nestedLayer == 0) {
                 lastPackagePath = packagePath;
                 lastPackageName = PACKAGE_FILENAME;
             }
         }
         
-        if (returningToSubPackage && !(keysHeld & KEY_B)){
+        if (returningToSubPackage && !(keysDown & KEY_B)){
             //lastPackageMenu = "subPackageMenu";
             lastPackageMenu = "";
             returningToPackage = false;
             returningToSubPackage = false;
+            inPackageMenu = false;
             inSubPackageMenu = true;
             simulatedBackComplete = true;
             if (nestedMenuCount == 0 && nestedLayer == 0) {
@@ -4089,6 +4175,24 @@ public:
             triggerExit.store(false, std::memory_order_release);
             tsl::setNextOverlay(OVERLAY_PATH+"ovlmenu.ovl");
             tsl::Overlay::get()->close();
+        }
+
+
+        if (simulatedBack && !simulatedBackComplete) {
+            keysDown |= KEY_B;
+            simulatedBack = false;
+        }
+        if ((keysDown & KEY_B) && !stillTouching) { // for catching lost navigations
+
+            allowSlide = unlockedSlide = false;
+            inSubPackageMenu = false;
+            returningToPackage = true;
+            lastMenu = "packageMenu";
+            //tsl::goBack();
+            tsl::goBack();
+            
+            simulatedBackComplete = true;
+            return true;
         }
         
         //svcSleepThread(10'000'000);
@@ -5034,7 +5138,7 @@ public:
     virtual bool handleInput(uint64_t keysDown, uint64_t keysHeld, touchPosition touchInput, JoystickPosition leftJoyStick, JoystickPosition rightJoyStick) override {
 
         if (runningInterpreter.load(std::memory_order_acquire))
-            return handleRunningInterpreter(keysHeld);
+            return handleRunningInterpreter(keysDown);
         
         //if (lastRunningInterpreter) {
         //    ////while (!interpreterThreadExit.load(std::memory_order_acquire)) {svcSleepThread(50'000'000);}
@@ -5104,11 +5208,11 @@ public:
             }
 
             if (simulatedBack && !simulatedBackComplete) {
-                keysHeld |= KEY_B;
+                keysDown |= KEY_B;
                 simulatedBack = false;
             }
 
-            if ((keysHeld & KEY_B) && !stillTouching) {
+            if ((keysDown & KEY_B) && !stillTouching) {
                 allowSlide = unlockedSlide = false;
                 returningToMain = true;
                 tsl::goBack();
@@ -5134,11 +5238,11 @@ public:
                 if (simulatedNextPage && !simulatedNextPageComplete) {
                     if (!usePageSwap) {
                         if (menuMode != PACKAGES_STR) {
-                            keysHeld |= KEY_DRIGHT;
+                            keysDown |= KEY_DRIGHT;
                             //simulatedNextPage = false;
                         }
                         else if (menuMode != OVERLAYS_STR) {
-                            keysHeld |= KEY_DLEFT;
+                            keysDown |= KEY_DLEFT;
                             //simulatedNextPage = false;
                         } else {
                             //simulatedNextPage = false;
@@ -5146,11 +5250,11 @@ public:
                         }
                     } else {
                         if (menuMode != PACKAGES_STR) {
-                            keysHeld |= KEY_DLEFT;
+                            keysDown |= KEY_DLEFT;
                             //simulatedNextPage = false;
                         }
                         else if (menuMode != OVERLAYS_STR) {
-                            keysHeld |= KEY_DRIGHT;
+                            keysDown |= KEY_DRIGHT;
                             //simulatedNextPage = false;
                         } else {
                             //simulatedNextPage = false;
@@ -5159,7 +5263,7 @@ public:
                     }
                 }
 
-                if ((keysHeld & KEY_RIGHT) && !(keysHeld & ~KEY_RIGHT & ~KEY_R & ALL_KEYS_MASK) && !stillTouching && (((!allowSlide && !unlockedSlide && onTrackBar) || (keysHeld & KEY_R)) || !onTrackBar || simulatedNextPage)) {
+                if ((keysDown & KEY_RIGHT) && !(keysDown & ~KEY_RIGHT & ~KEY_R & ALL_KEYS_MASK) && !stillTouching && (((!allowSlide && !unlockedSlide && onTrackBar) || (keysDown & KEY_R)) || !onTrackBar || simulatedNextPage)) {
                     simulatedNextPage = false;
                     allowSlide = unlockedSlide = false;
                     if (!usePageSwap) {
@@ -5186,7 +5290,7 @@ public:
                         }
                     }
                 }
-                if ((keysHeld & KEY_LEFT) && !(keysHeld & ~KEY_LEFT & ~KEY_R & ALL_KEYS_MASK) && !stillTouching && (((!allowSlide && onTrackBar && !unlockedSlide) || (keysHeld & KEY_R)) || !onTrackBar || simulatedNextPage)) {
+                if ((keysDown & KEY_LEFT) && !(keysDown & ~KEY_LEFT & ~KEY_R & ALL_KEYS_MASK) && !stillTouching && (((!allowSlide && onTrackBar && !unlockedSlide) || (keysDown & KEY_R)) || !onTrackBar || simulatedNextPage)) {
                     simulatedNextPage = false;
                     allowSlide = unlockedSlide = false;
                     if (!usePageSwap) {
@@ -5216,11 +5320,11 @@ public:
                 simulatedNextPage = false;
 
                 if (simulatedBack && !simulatedBackComplete) {
-                    keysHeld |= KEY_B;
+                    keysDown |= KEY_B;
                     simulatedBack = false;
                 }
 
-                if ((keysHeld & KEY_B) && !stillTouching) {
+                if ((keysDown & KEY_B) && !stillTouching) {
                     allowSlide = unlockedSlide = false;
                     tsl::setNextOverlay(OVERLAY_PATH+"ovlmenu.ovl");
                     exitingUltrahand = true;
@@ -5230,11 +5334,11 @@ public:
                 }
 
                 if (simulatedMenu && !simulatedMenuComplete) {
-                    keysHeld |= SYSTEM_SETTINGS_KEY;
+                    keysDown |= SYSTEM_SETTINGS_KEY;
                     simulatedMenu = false;
                 }
 
-                if ((keysHeld & SYSTEM_SETTINGS_KEY) && !stillTouching) {
+                if ((keysDown & SYSTEM_SETTINGS_KEY) && !stillTouching) {
                     inMainMenu = false;
                     tsl::changeTo<UltrahandSettingsMenu>();
                     //if (menuMode != PACKAGES_STR) startInterpreterThread();
@@ -5258,11 +5362,11 @@ public:
                 }
 
                 if (simulatedBack && !simulatedBackComplete) {
-                    keysHeld |= KEY_B;
+                    keysDown |= KEY_B;
                     simulatedBack = false;
                 }
 
-                if ((keysHeld & KEY_B) && !stillTouching) {
+                if ((keysDown & KEY_B) && !stillTouching) {
                     if (parseValueFromIniSection(ULTRAHAND_CONFIG_INI_PATH, ULTRAHAND_PROJECT_NAME, IN_HIDDEN_OVERLAY_STR) == FALSE_STR) {
                         inMainMenu = true;
                         inHiddenMode = false;
@@ -5294,14 +5398,14 @@ public:
             }
         }
         
-        if (freshSpawn && !(keysHeld & KEY_B))
+        if (freshSpawn && !(keysDown & KEY_B))
             freshSpawn = false;
         
-        if (returningToMain && !(keysHeld & KEY_B)){
+        if (returningToMain && !(keysDown & KEY_B)){
             returningToMain = false;
             inMainMenu = true;
         }
-        if (returningToHiddenMain && !(keysHeld & KEY_B)){
+        if (returningToHiddenMain && !(keysDown & KEY_B)){
             returningToHiddenMain = false;
             inHiddenMode = true;
         }
