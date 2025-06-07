@@ -34,6 +34,7 @@
 #include <queue>
 #include <mutex>
 #include <condition_variable>
+#include <regex>
 //#include <sys/statvfs.h>
 
 
@@ -64,6 +65,8 @@ static uint32_t cpuSpeedo0, cpuSpeedo2, socSpeedo0; // CPU, GPU, SOC
 static uint32_t cpuIDDQ, gpuIDDQ, socIDDQ;
 static bool usingEmunand = true;
 
+
+
 /**
  * @brief Ultrahand-Overlay Configuration Paths
  *
@@ -82,6 +85,35 @@ static bool usingEmunand = true;
  * and directories.
  */
 
+static std::vector<std::string> getOverlayNames() {
+    std::vector<std::string> names;
+    auto iniData = ult::getParsedDataFromIniFile(ult::OVERLAYS_INI_FILEPATH);
+    for (const auto& [sectionName, _] : iniData) {
+        names.push_back(sectionName);
+    }
+    return names;
+}
+
+static void removeKeyComboFromOtherOverlays(const std::string& keyCombo, const std::string& currentOverlay) {
+    auto overlayNames = getOverlayNames();  // Make sure hlp namespace is correct
+    for (const auto& overlayName : overlayNames) {
+        if (overlayName != currentOverlay) {
+            std::string existingCombo = ult::parseValueFromIniSection(ult::OVERLAYS_INI_FILEPATH, overlayName, "key_combo");
+            if (!existingCombo.empty() && tsl::hlp::comboStringToKeys(existingCombo) == tsl::hlp::comboStringToKeys(keyCombo)) {
+                // Clear it
+                ult::setIniFileValue(ult::OVERLAYS_INI_FILEPATH, overlayName, "key_combo", "");
+            }
+        }
+    }
+}
+
+// Define default key combos (same as UltrahandSettingsMenu)
+const std::vector<std::string> defaultCombos = {
+    "ZL+ZR+DDOWN", "ZL+ZR+DRIGHT", "ZL+ZR+DUP", "ZL+ZR+DLEFT", 
+    "L+R+DDOWN", "L+R+DRIGHT", "L+R+DUP", "L+R+DLEFT", 
+    "L+DDOWN", "R+DDOWN", "ZL+ZR+PLUS", "L+R+PLUS", 
+    "ZL+PLUS", "ZR+PLUS", "MINUS+PLUS", "LS+RS", "L+DDOWN+RS"
+};
 
 // Global constant map for button and arrow placeholders
 const std::unordered_map<std::string, std::string> symbolPlaceholders = {
@@ -561,6 +593,122 @@ void unpackDeviceInfo() {
         }
     }
 
+}
+
+
+// Escapes regex special chars except '*'
+static std::string resolveWildcardFromKnownPath(
+    const std::string& oldPattern,
+    const std::string& resolvedPath,
+    const std::string& newPattern
+) {
+    // Helper function to check if paths match and extract wildcard values
+    auto matchAndExtract = [](const std::string& pattern, const std::string& path, std::vector<std::string>& captures) -> bool {
+        size_t patternPos = 0;
+        size_t pathPos = 0;
+        
+        while (patternPos < pattern.size() && pathPos < path.size()) {
+            if (pattern[patternPos] == '*') {
+                // Find the next non-wildcard character in pattern
+                size_t nextPatternPos = patternPos + 1;
+                while (nextPatternPos < pattern.size() && pattern[nextPatternPos] == '*') {
+                    nextPatternPos++; // Skip consecutive wildcards
+                }
+                
+                if (nextPatternPos >= pattern.size()) {
+                    // Wildcard is at the end, capture everything remaining
+                    captures.push_back(path.substr(pathPos));
+                    return true;
+                }
+                
+                // Find the next literal character after the wildcard
+                char nextChar = pattern[nextPatternPos];
+                
+                // Find where this character appears in the path
+                size_t foundPos = pathPos;
+                bool found = false;
+                
+                // Look for the next literal sequence starting from current path position
+                while (foundPos < path.size()) {
+                    if ((nextChar == '/' || nextChar == '\\') && 
+                        (path[foundPos] == '/' || path[foundPos] == '\\')) {
+                        found = true;
+                        break;
+                    } else if (nextChar != '/' && nextChar != '\\' && 
+                               std::tolower(path[foundPos]) == std::tolower(nextChar)) {
+                        found = true;
+                        break;
+                    }
+                    foundPos++;
+                }
+                
+                if (!found) {
+                    return false;
+                }
+                
+                // Capture everything between current position and found position
+                captures.push_back(path.substr(pathPos, foundPos - pathPos));
+                pathPos = foundPos;
+                patternPos = nextPatternPos;
+            } else {
+                // Literal character matching (case-insensitive, handle path separators)
+                char patternChar = pattern[patternPos];
+                char pathChar = path[pathPos];
+                
+                bool match = false;
+                if ((patternChar == '/' || patternChar == '\\') && 
+                    (pathChar == '/' || pathChar == '\\')) {
+                    match = true;
+                } else if (std::tolower(patternChar) == std::tolower(pathChar)) {
+                    match = true;
+                }
+                
+                if (!match) {
+                    return false;
+                }
+                
+                patternPos++;
+                pathPos++;
+            }
+        }
+        
+        // Handle remaining wildcards at the end of pattern
+        while (patternPos < pattern.size() && pattern[patternPos] == '*') {
+            captures.push_back("");
+            patternPos++;
+        }
+        
+        // Pattern should be fully consumed, path can have remaining characters
+        return patternPos >= pattern.size();
+    };
+    
+    // Try to match the pattern at different positions in the resolved path (simulating .* anchors)
+    std::vector<std::string> captures;
+    bool matched = false;
+    
+    for (size_t startPos = 0; startPos <= resolvedPath.size(); ++startPos) {
+        captures.clear();
+        std::string subPath = resolvedPath.substr(startPos);
+        
+        if (matchAndExtract(oldPattern, subPath, captures)) {
+            matched = true;
+            break;
+        }
+    }
+    
+    if (!matched) {
+        return newPattern;
+    }
+    
+    // Replace wildcards in newPattern with captured values
+    std::string result = newPattern;
+    for (size_t i = 0; i < captures.size(); ++i) {
+        size_t pos = result.find('*');
+        if (pos == std::string::npos) break;
+        result.replace(pos, 1, captures[i]);
+    }
+    
+    return result;
 }
 
 
@@ -1172,7 +1320,7 @@ void drawTable(
     const auto infoRaw   = getRawColor(tableInfoTextColor,      tsl::infoTextColor);
     const auto hiliteRaw = getRawColor(tableInfoTextHighlightColor, tsl::infoTextColor);
 
-    // Prebuild initial buffers (optional, to warm cache)
+    // Prebuild initial buffers
     std::vector<std::string> cacheExpSec, cacheExpInfo;
     std::vector<s32>         cacheYOff;
     std::vector<s32>         cacheXOff;
@@ -1184,59 +1332,62 @@ void drawTable(
         cacheExpSec, cacheExpInfo, cacheYOff, cacheXOff
     );
 
-    //std::vector<std::string> cacheExpSec = initExpSec;
-    //std::vector<std::string> cacheExpInfo = initExpInfo;
-    //std::vector<s32>         cacheYOff   = initYOff;
-    //std::vector<int>         cacheXOff   = initXOff;
-
-    auto lastUpdateTime = std::make_shared<timespec>(timespec{0, 0});
+    // ULTRA-FAST: Use amsticks for high-performance timing
+    auto lastUpdateTick = std::make_shared<u64>(armGetSystemTick());
     
-
-    // Use move or copy to static cache inside lambda
     list->addItem(new tsl::elm::TableDrawer(
         [=](tsl::gfx::Renderer* renderer, s32 x, s32 y, s32 w, s32 h) mutable {
 
-            timespec currentTime;
-            clock_gettime(CLOCK_REALTIME, &currentTime);
-
-            //double elapsedSeconds = difftime(currentTime.tv_sec, lastUpdateTime->tv_sec);
-
-            // Rebuild cache if more than 1 sec passed or empty
             if (!tableData.empty()) {
-                double elapsedSeconds = difftime(currentTime.tv_sec, lastUpdateTime->tv_sec);
-                if (elapsedSeconds >= 1.0) {
+                u64 currentTick = armGetSystemTick();
+                u64 currentFreq = armGetSystemTickFreq();
+                u64 ticksForOneSecond = currentFreq;
+                
+                if ((currentTick - *lastUpdateTick) >= ticksForOneSecond) {  // Fix: use the correct variable
                     buildTableDrawerLines(
                         tableData, sectionLines, infoLines, packagePath,
                         columnOffset, startGap, newlineGap,
                         wrappingMode, alignment, useWrappedTextIndent,
                         cacheExpSec, cacheExpInfo, cacheYOff, cacheXOff
                     );
-                    *lastUpdateTime = currentTime;
+                    *lastUpdateTick = currentTick;
                 }
             }
 
+            // ULTRA-FAST: Minimal branching, maximum cache efficiency
             if (useHeaderIndent) {
                 renderer->drawRect(x-2, y+2, 4, 22, renderer->a(tsl::headerSeparatorColor));
             }
 
-            bool sameCol = (tableInfoTextColor == tableInfoTextHighlightColor);
-            for (size_t i = 0; i < cacheExpSec.size(); ++i) {
-                renderer->drawString(
-                    cacheExpSec[i], false,
-                    x+12, y + cacheYOff[i],
-                    16, renderer->a(secRaw)
-                );
-                if (sameCol) {
-                    renderer->drawString(
-                        cacheExpInfo[i], false,
-                        x + cacheXOff[i], y + cacheYOff[i],
-                        16, renderer->a(infoRaw)
-                    );
-                } else {
+            // ULTRA-FAST: Pre-calculate everything, optimize for CPU pipeline
+            const bool sameCol = (tableInfoTextColor == tableInfoTextHighlightColor);
+            const size_t count = cacheExpSec.size();
+            
+            if (sameCol) {
+                // Fastest path: same colors, minimal function calls
+                const auto secColor = renderer->a(secRaw);
+                const auto infoColor = renderer->a(infoRaw);
+                const s32 baseX = x + 12;
+                
+                // Tight loop optimized for CPU cache
+                for (size_t i = 0; i < count; ++i) {
+                    const s32 yPos = y + cacheYOff[i];
+                    renderer->drawString(cacheExpSec[i], false, baseX, yPos, 16, secColor);
+                    renderer->drawString(cacheExpInfo[i], false, x + cacheXOff[i], yPos, 16, infoColor);
+                }
+            } else {
+                // Still fast path for different colors
+                const auto secColor = renderer->a(secRaw);
+                const auto infoColor = renderer->a(infoRaw);
+                const auto hiliteColor = renderer->a(hiliteRaw);
+                const s32 baseX = x + 12;
+                
+                for (size_t i = 0; i < count; ++i) {
+                    const s32 yPos = y + cacheYOff[i];
+                    renderer->drawString(cacheExpSec[i], false, baseX, yPos, 16, secColor);
                     renderer->drawStringWithHighlight(
-                        cacheExpInfo[i], false,
-                        x + cacheXOff[i], y + cacheYOff[i], 16,
-                        renderer->a(infoRaw), renderer->a(hiliteRaw)
+                        cacheExpInfo[i], false, x + cacheXOff[i], yPos, 16,
+                        infoColor, hiliteColor
                     );
                 }
             }
@@ -1958,6 +2109,8 @@ std::vector<std::vector<std::string>> getSourceReplacement(const std::vector<std
     }
 
     if (usingFileSource) {
+        modifiedCommands.insert(modifiedCommands.begin(), { "file_name", fileName });
+        modifiedCommands.insert(modifiedCommands.begin(), { "folder_name", path });
         modifiedCommands.insert(modifiedCommands.begin(), { "sourced_path", entry });
     }
 
@@ -2412,77 +2565,67 @@ void applyPlaceholderReplacements(std::vector<std::string>& cmd, const std::stri
             return returnOrNull(placeholder);
         }},
         {"{slice(", [&](const std::string& placeholder) {
-            // Extract the text inside the parentheses
             size_t startPos = placeholder.find('(');
             size_t endPos = placeholder.rfind(')');
             if (startPos == std::string::npos || endPos == std::string::npos || endPos <= startPos + 1) {
                 return returnOrNull(placeholder);
             }
-            std::string parameters = placeholder.substr(startPos + 1, endPos - startPos - 1);
         
-            // Find the two commas that separate <STRING>,<START_INDEX>,<END_INDEX>
+            std::string parameters = placeholder.substr(startPos + 1, endPos - startPos - 1);
             size_t firstComma = parameters.find(',');
-            size_t secondComma = (firstComma == std::string::npos) 
-                               ? std::string::npos 
-                               : parameters.find(',', firstComma + 1);
+            size_t secondComma = (firstComma == std::string::npos) ? std::string::npos : parameters.find(',', firstComma + 1);
             if (firstComma == std::string::npos || secondComma == std::string::npos) {
                 return returnOrNull(placeholder);
             }
         
-            // Extract each piece
             std::string strPart    = parameters.substr(0, firstComma);
             std::string startIndex = parameters.substr(firstComma + 1, secondComma - firstComma - 1);
             std::string endIndex   = parameters.substr(secondComma + 1);
         
-            // Trim whitespace and remove surrounding quotes if present
             trim(strPart);
-            removeQuotes(strPart);
+            removeQuotes(strPart); // << WARNING: this might be removing your entire string
             trim(startIndex);
             removeQuotes(startIndex);
             trim(endIndex);
             removeQuotes(endIndex);
         
-            // Validate that startIndex and endIndex are all digits
             if (startIndex.empty() || endIndex.empty() ||
                 !std::all_of(startIndex.begin(), startIndex.end(), ::isdigit) ||
                 !std::all_of(endIndex.begin(), endIndex.end(), ::isdigit)) {
                 return returnOrNull(placeholder);
             }
         
-            // Convert indices to size_t
             size_t sliceStart = static_cast<size_t>(ult::stoi(startIndex));
             size_t sliceEnd   = static_cast<size_t>(ult::stoi(endIndex));
         
-            // Perform the slice
-            return returnOrNull(sliceString(strPart, sliceStart, sliceEnd));
+            if (sliceEnd <= sliceStart || sliceStart >= strPart.length()) {
+                return returnOrNull(placeholder); // or maybe return "" if you'd prefer that fallback
+            }
+        
+            // Final slice
+            std::string result = sliceString(strPart, sliceStart, sliceEnd);
+            return returnOrNull(result);
         }},
         {"{split(", [&](const std::string& placeholder) {
             size_t openParen = placeholder.find('(');
             size_t closeParen = placeholder.find(')');
         
-            // If we can’t find both '(' and ')', or they’re in the wrong order, bail out:
             if (openParen == std::string::npos || closeParen == std::string::npos || closeParen <= openParen) {
-                return std::string(NULL_STR);
+                return NULL_STR;
             }
         
-            // Extract “arg1,arg2,arg3” (everything between the parentheses)
-            size_t startPos = openParen + 1;
-            size_t endPos = closeParen;
-            std::string parameters = placeholder.substr(startPos, endPos - startPos);
+            std::string parameters = placeholder.substr(openParen + 1, closeParen - openParen - 1);
         
-            // Locate the commas
             size_t firstCommaPos = parameters.find(',');
             size_t lastCommaPos  = parameters.find_last_of(',');
         
-            // We need at least two commas, and they must be distinct
             if (firstCommaPos == std::string::npos
              || lastCommaPos  == std::string::npos
              || firstCommaPos == lastCommaPos) 
             {
-                return std::string(NULL_STR);
+                return NULL_STR;
             }
         
-            // Split out the three parts: str, delimiter, index
             std::string str = parameters.substr(0, firstCommaPos);
             std::string delimiter = parameters.substr(firstCommaPos + 1, lastCommaPos - firstCommaPos - 1);
             std::string indexStr = parameters.substr(lastCommaPos + 1);
@@ -2493,19 +2636,14 @@ void applyPlaceholderReplacements(std::vector<std::string>& cmd, const std::stri
             removeQuotes(delimiter);
             trim(indexStr);
         
-            // If index is not purely digits, fail
-            if (indexStr.empty() 
-             || !std::all_of(indexStr.begin(), indexStr.end(), ::isdigit)) 
-            {
-                return std::string(NULL_STR);
+            if (indexStr.empty() || !std::all_of(indexStr.begin(), indexStr.end(), ::isdigit)) {
+                return NULL_STR;
             }
         
             size_t index = ult::stoi(indexStr);
             std::string result = splitStringAtIndex(str, delimiter, index);
         
-            // If splitStringAtIndex returns empty, return NULL_STR;
-            // otherwise, return that nonempty result
-            return NULL_STR;
+            return result.empty() ? NULL_STR : result;
         }},
         {"{math(", [&](const std::string& placeholder) { return returnOrNull(handleMath(placeholder)); }},
         {"{length(", [&](const std::string& placeholder) { return returnOrNull(handleLength(placeholder)); }},
@@ -2642,7 +2780,7 @@ bool applyPlaceholderReplacementsToCommands(std::vector<std::vector<std::string>
             hexPath = std::string(cmd[1]);  // Make a copy of cmd[1] into hexPath
             preprocessPath(hexPath, packagePath);
             eraseAtEnd = true;
-        } else if (commandName == "filter" || commandName == "sourced_path") {
+        } else if (commandName == "filter" || commandName == "file_name" || commandName == "folder_name" || commandName == "sourced_path") {
             eraseAtEnd = true;
         } else {
             eraseAtEnd = false;

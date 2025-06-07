@@ -56,7 +56,7 @@ include $(DEVKITPRO)/libnx/switch_rules
 #---------------------------------------------------------------------------------
 APP_TITLE	:= Ultrahand
 APP_AUTHOR	:= ppkantorski
-APP_VERSION	:= 1.8.7
+APP_VERSION	:= 1.8.9
 TARGET		:= ovlmenu
 BUILD		:= build
 SOURCES		:= source common lib/libultrahand/libultra/source
@@ -84,6 +84,9 @@ CFLAGS += -DUSING_WIDGET_DIRECTIVE=$(USING_WIDGET_DIRECTIVE)
 # Enable Logging
 USING_LOGGING_DIRECTIVE := 1  # or true
 CFLAGS += -DUSING_LOGGING_DIRECTIVE=$(USING_LOGGING_DIRECTIVE)
+
+USING_FPS_INDICATOR_DIRECTIVE := 0
+CFLAGS += -DUSING_FPS_INDICATOR_DIRECTIVE=$(USING_FPS_INDICATOR_DIRECTIVE)
 
 # Disable fstream
 #NO_FSTREAM_DIRECTIVE := 1
