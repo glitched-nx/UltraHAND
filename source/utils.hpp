@@ -96,9 +96,10 @@ static std::vector<std::string> getOverlayNames() {
 
 static void removeKeyComboFromOtherOverlays(const std::string& keyCombo, const std::string& currentOverlay) {
     auto overlayNames = getOverlayNames();  // Make sure hlp namespace is correct
+    std::string existingCombo;
     for (const auto& overlayName : overlayNames) {
         if (overlayName != currentOverlay) {
-            std::string existingCombo = ult::parseValueFromIniSection(ult::OVERLAYS_INI_FILEPATH, overlayName, "key_combo");
+            existingCombo = ult::parseValueFromIniSection(ult::OVERLAYS_INI_FILEPATH, overlayName, "key_combo");
             if (!existingCombo.empty() && tsl::hlp::comboStringToKeys(existingCombo) == tsl::hlp::comboStringToKeys(keyCombo)) {
                 // Clear it
                 ult::setIniFileValue(ult::OVERLAYS_INI_FILEPATH, overlayName, "key_combo", "");
@@ -111,8 +112,8 @@ static void removeKeyComboFromOtherOverlays(const std::string& keyCombo, const s
 const std::vector<std::string> defaultCombos = {
     "ZL+ZR+DDOWN", "ZL+ZR+DRIGHT", "ZL+ZR+DUP", "ZL+ZR+DLEFT", 
     "L+R+DDOWN", "L+R+DRIGHT", "L+R+DUP", "L+R+DLEFT", 
-    "L+DDOWN", "R+DDOWN", "ZL+ZR+PLUS", "L+R+PLUS", 
-    "ZL+PLUS", "ZR+PLUS", "MINUS+PLUS", "LS+RS", "L+DDOWN+RS"
+    "L+DDOWN", "R+DDOWN", "ZL+ZR+PLUS", "L+R+PLUS", "ZL+ZR+MINUS", "L+R+MINUS", 
+    "ZL+MINUS", "ZR+MINUS", "ZL+PLUS", "ZR+PLUS", "MINUS+PLUS", "LS+RS", "L+DDOWN+RS"
 };
 
 // Global constant map for button and arrow placeholders
@@ -606,11 +607,18 @@ static std::string resolveWildcardFromKnownPath(
     auto matchAndExtract = [](const std::string& pattern, const std::string& path, std::vector<std::string>& captures) -> bool {
         size_t patternPos = 0;
         size_t pathPos = 0;
-        
+        size_t nextPatternPos;
+        char nextChar;
+        size_t foundPos;
+        bool found;
+        char patternChar;
+        char pathChar;
+        bool match;
+
         while (patternPos < pattern.size() && pathPos < path.size()) {
             if (pattern[patternPos] == '*') {
                 // Find the next non-wildcard character in pattern
-                size_t nextPatternPos = patternPos + 1;
+                nextPatternPos = patternPos + 1;
                 while (nextPatternPos < pattern.size() && pattern[nextPatternPos] == '*') {
                     nextPatternPos++; // Skip consecutive wildcards
                 }
@@ -622,11 +630,11 @@ static std::string resolveWildcardFromKnownPath(
                 }
                 
                 // Find the next literal character after the wildcard
-                char nextChar = pattern[nextPatternPos];
+                nextChar = pattern[nextPatternPos];
                 
                 // Find where this character appears in the path
-                size_t foundPos = pathPos;
-                bool found = false;
+                foundPos = pathPos;
+                found = false;
                 
                 // Look for the next literal sequence starting from current path position
                 while (foundPos < path.size()) {
@@ -652,10 +660,10 @@ static std::string resolveWildcardFromKnownPath(
                 patternPos = nextPatternPos;
             } else {
                 // Literal character matching (case-insensitive, handle path separators)
-                char patternChar = pattern[patternPos];
-                char pathChar = path[pathPos];
+                patternChar = pattern[patternPos];
+                pathChar = path[pathPos];
                 
-                bool match = false;
+                match = false;
                 if ((patternChar == '/' || patternChar == '\\') && 
                     (pathChar == '/' || pathChar == '\\')) {
                     match = true;
@@ -685,10 +693,11 @@ static std::string resolveWildcardFromKnownPath(
     // Try to match the pattern at different positions in the resolved path (simulating .* anchors)
     std::vector<std::string> captures;
     bool matched = false;
-    
+    std::string subPath;
+
     for (size_t startPos = 0; startPos <= resolvedPath.size(); ++startPos) {
         captures.clear();
-        std::string subPath = resolvedPath.substr(startPos);
+        subPath = resolvedPath.substr(startPos);
         
         if (matchAndExtract(oldPattern, subPath, captures)) {
             matched = true;
@@ -702,8 +711,9 @@ static std::string resolveWildcardFromKnownPath(
     
     // Replace wildcards in newPattern with captured values
     std::string result = newPattern;
+    size_t pos;
     for (size_t i = 0; i < captures.size(); ++i) {
-        size_t pos = result.find('*');
+        pos = result.find('*');
         if (pos == std::string::npos) break;
         result.replace(pos, 1, captures[i]);
     }
@@ -984,60 +994,7 @@ void addDummyListItem(auto& list, s32 index = -1) {
 //}
 
 
-std::vector<std::string> wrapText(const std::string& text, float maxWidth, const std::string& wrappingMode, bool useIndent, const std::string& indent, float indentWidth, size_t fontSize) {
-    if (wrappingMode == "none" || (wrappingMode != "char" && wrappingMode != "word")) {
-        return std::vector<std::string>{text};  // Return the entire text as a single line
-    }
-
-    std::vector<std::string> wrappedLines;
-    std::string currentLine;
-    std::string currentWord;
-    bool firstLine = true;
-    float currentMaxWidth = maxWidth;
-
-    if (wrappingMode == "char") {
-        size_t i = 0;
-        while (i < text.size()) {
-            currentLine += text[i];
-            currentMaxWidth = firstLine ? maxWidth : maxWidth - indentWidth;  // Subtract indent width for subsequent lines
-
-            if (tsl::gfx::calculateStringWidth(currentLine, fontSize, false) > currentMaxWidth) {
-                wrappedLines.push_back(((firstLine && useIndent) || !useIndent) ? currentLine : indent + currentLine);  // Indent if not the first line
-                currentLine.clear();  // Start a new line
-                firstLine = false;
-            }
-            i++;
-        }
-
-        if (!currentLine.empty()) {
-            wrappedLines.push_back(((firstLine && useIndent) || !useIndent) ? currentLine : indent + currentLine);  // Add the last line
-        }
-    } else if (wrappingMode == "word") {
-        StringStream stream(text);
-        while (stream >> currentWord) {
-            if (tsl::gfx::calculateStringWidth(currentLine + currentWord, fontSize, false) > currentMaxWidth) {
-                wrappedLines.push_back(((firstLine && useIndent) || !useIndent) ? currentLine : indent + currentLine);  // Add the current line
-                currentLine.clear();  // Start a new line with the current word
-                firstLine = false;
-            }
-
-            if (!currentLine.empty()) {
-                currentLine += " ";  // Add a space between words
-            }
-            currentLine += currentWord;
-        }
-
-        if (!currentLine.empty()) {
-            wrappedLines.push_back(((firstLine && useIndent) || !useIndent) ? currentLine : indent + currentLine);  // Add the last line
-        }
-    }
-
-    return wrappedLines;
-}
-
-
-
-void applyPlaceholderReplacements(std::vector<std::string>& cmd, const std::string& hexPath, const std::string& iniPath, const std::string& listString, const std::string& listPath, const std::string& jsonString, const std::string& jsonPath);
+bool applyPlaceholderReplacements(std::vector<std::string>& cmd, const std::string& hexPath, const std::string& iniPath, const std::string& listString, const std::string& listPath, const std::string& jsonString, const std::string& jsonPath);
 
 std::string getFirstSectionText(const std::vector<std::vector<std::string>>& tableData, const std::string& packagePath) {
     std::string message;
@@ -1046,6 +1003,7 @@ std::string getFirstSectionText(const std::vector<std::vector<std::string>>& tab
     
     bool inEristaSection = false;
     bool inMarikoSection = false;
+    std::vector<std::string> lines;
     
     for (const auto& commands : tableData) {
         auto cmd = commands;  // Make a copy if you need to modify it
@@ -1080,7 +1038,7 @@ std::string getFirstSectionText(const std::vector<std::vector<std::string>>& tab
                 preprocessPath(listFileSourcePath, packagePath);
 
                 // Read lines from the file
-                std::vector<std::string> lines = readListFromFile(listFileSourcePath);
+                lines = readListFromFile(listFileSourcePath);
 
                 // Return the first line if available
                 if (!lines.empty()) {
@@ -1133,10 +1091,60 @@ std::string getFirstSectionText(const std::vector<std::vector<std::string>>& tab
     return "";  // Or return a default message if appropriate
 }
 
+std::vector<std::string> wrapText(const std::string& text, float maxWidth, const std::string& wrappingMode, bool useIndent, const std::string& indent, float indentWidth, size_t fontSize) {
+    if (wrappingMode == "none" || (wrappingMode != "char" && wrappingMode != "word")) {
+        return std::vector<std::string>{text};  // Return the entire text as a single line
+    }
+
+    std::vector<std::string> wrappedLines;
+    std::string currentLine;
+    std::string currentWord;
+    bool firstLine = true;
+    float currentMaxWidth = maxWidth;
+
+    if (wrappingMode == "char") {
+        size_t i = 0;
+        while (i < text.size()) {
+            currentLine += text[i];
+            currentMaxWidth = firstLine ? maxWidth : maxWidth - indentWidth;  // Subtract indent width for subsequent lines
+
+            if (tsl::gfx::calculateStringWidth(currentLine, fontSize, false) > currentMaxWidth) {
+                wrappedLines.push_back(((firstLine && useIndent) || !useIndent) ? currentLine : indent + currentLine);  // Indent if not the first line
+                currentLine.clear();  // Start a new line
+                firstLine = false;
+            }
+            i++;
+        }
+
+        if (!currentLine.empty()) {
+            wrappedLines.push_back(((firstLine && useIndent) || !useIndent) ? currentLine : indent + currentLine);  // Add the last line
+        }
+    } else if (wrappingMode == "word") {
+        StringStream stream(text);
+        while (stream >> currentWord) {
+            if (tsl::gfx::calculateStringWidth(currentLine + currentWord, fontSize, false) > currentMaxWidth) {
+                wrappedLines.push_back(((firstLine && useIndent) || !useIndent) ? currentLine : indent + currentLine);  // Add the current line
+                currentLine.clear();  // Start a new line with the current word
+                firstLine = false;
+            }
+
+            if (!currentLine.empty()) {
+                currentLine += " ";  // Add a space between words
+            }
+            currentLine += currentWord;
+        }
+
+        if (!currentLine.empty()) {
+            wrappedLines.push_back(((firstLine && useIndent) || !useIndent) ? currentLine : indent + currentLine);  // Add the last line
+        }
+    }
+
+    return wrappedLines;
+}
 
 
 // ─── Helper: flatten + placeholder + wrap & expand ─────────────────────────────
-static void buildTableDrawerLines(
+static bool buildTableDrawerLines(
     const std::vector<std::vector<std::string>>& tableData,
     std::vector<std::string>&                    sectionLines,
     std::vector<std::string>&                    infoLines,
@@ -1164,18 +1172,22 @@ static void buildTableDrawerLines(
     outX.clear();
 
     size_t curY = startGap;
+    bool anyReplacementsMade = false;
 
     // A small lambda to wrap and push lines with proper x,y and info alignment
     auto processLines = [&](const std::vector<std::string>& lines, const std::vector<std::string>& infos) {
+        std::string infoText;
+        int xPos;
+        float infoWidth;
         for (size_t i = 0; i < lines.size(); ++i) {
             const std::string& baseText = lines[i];
             const std::string& infoTextRaw = (i < infos.size()) ? infos[i] : "";
-            std::string infoText = (infoTextRaw.find(NULL_STR) != std::string::npos) ? UNAVAILABLE_SELECTION : infoTextRaw;
+            infoText = (infoTextRaw.find(NULL_STR) != std::string::npos) ? UNAVAILABLE_SELECTION : infoTextRaw;
 
             // Wrap the base text according to wrappingMode and indent params
             auto wrappedLines = wrapText(
                 baseText,
-                xMax - 12 - 4,
+                xMax - 22,
                 wrappingMode,
                 useWrappedTextIndent,
                 indent, indentWidth,
@@ -1183,13 +1195,13 @@ static void buildTableDrawerLines(
             );
 
             // Cache width of info text only once per base line, not per wrapped line
-            float infoWidth = tsl::gfx::calculateStringWidth(infoText, fontSize, false);
+            infoWidth = tsl::gfx::calculateStringWidth(infoText, fontSize, false);
 
             for (const auto& line : wrappedLines) {
                 outSection.push_back(line);
                 outInfo.push_back(infoText);
 
-                int xPos = 0;
+                xPos = 0;
                 if (alignment == LEFT_STR) {
                     xPos = static_cast<int>(columnOffset);
                 } else if (alignment == RIGHT_STR) {
@@ -1208,6 +1220,7 @@ static void buildTableDrawerLines(
     if (!tableData.empty()) {
         std::vector<std::string> baseSection;
         std::vector<std::string> baseInfo;
+        std::vector<std::string> lines;
 
         std::string listFileSourcePath;
         std::string hexPath, iniPath, listString, listPath, jsonString, jsonPath;
@@ -1231,16 +1244,19 @@ static void buildTableDrawerLines(
             if ((inErista && usingErista) || (inMariko && usingMariko) || (!inErista && !inMariko)) {
                 auto cmd = cmds;  // Copy for placeholder replacements
 
-                applyPlaceholderReplacements(
+                // Track if any placeholder replacements were made
+                if (applyPlaceholderReplacements(
                     cmd, hexPath, iniPath,
                     listString, listPath,
                     jsonString, jsonPath
-                );
+                )) {
+                    anyReplacementsMade = true;
+                }
 
                 if (cmd[0] == "list_file_source" && cmd.size() >= 2 && listFileSourcePath.empty()) {
                     listFileSourcePath = cmd[1];
                     preprocessPath(listFileSourcePath, packagePath);
-                    auto lines = readListFromFile(listFileSourcePath);
+                    lines = readListFromFile(listFileSourcePath);
                     for (const auto& line : lines) {
                         baseSection.push_back(line);
                         baseInfo.push_back("");
@@ -1279,7 +1295,11 @@ static void buildTableDrawerLines(
     } else {
         processLines(sectionLines, infoLines);
     }
+    
+    // Return true if any placeholder replacements were made
+    return anyReplacementsMade;
 }
+
 
 void drawTable(
     std::unique_ptr<tsl::elm::List>&      list,
@@ -1288,15 +1308,16 @@ void drawTable(
     std::vector<std::string>&             infoLines,
     size_t columnOffset             = 163,
     size_t startGap                 = 19,
-    size_t endGap                   = 12,
-    size_t newlineGap               = 0,
+    size_t endGap                   = 6,
+    size_t newlineGap               = 4,
     const std::string& tableSectionTextColor       = DEFAULT_STR,
     const std::string& tableInfoTextColor          = DEFAULT_STR,
     const std::string& tableInfoTextHighlightColor = DEFAULT_STR,
     const std::string& alignment                   = LEFT_STR,
     bool hideTableBackground        = false,
     bool useHeaderIndent            = false,
-    bool isScrollable               = false,
+    bool isPolling                  = false,
+    bool isScrollable               = true,
     const std::string& wrappingMode               = "none",
     bool useWrappedTextIndent        = false,
     std::string packagePath          = ""
@@ -1325,41 +1346,40 @@ void drawTable(
     std::vector<s32>         cacheYOff;
     std::vector<s32>         cacheXOff;
 
-    buildTableDrawerLines(
+    bool usingPlaceholders = buildTableDrawerLines(
         tableData, sectionLines, infoLines, packagePath,
         columnOffset, startGap, newlineGap,
         wrappingMode, alignment, useWrappedTextIndent,
         cacheExpSec, cacheExpInfo, cacheYOff, cacheXOff
-    );
+    ) && isPolling;
 
-    // ULTRA-FAST: Use amsticks for high-performance timing
-    auto lastUpdateTick = std::make_shared<u64>(armGetSystemTick());
+    // Use nanoseconds for high-performance timing
+    auto lastUpdateNS = std::make_shared<u64>(armTicksToNs(armGetSystemTick()));
+    constexpr u64 ONE_SECOND_NS = 1000000000ULL; // 1 billion nanoseconds = 1 second
     
     list->addItem(new tsl::elm::TableDrawer(
         [=](tsl::gfx::Renderer* renderer, s32 x, s32 y, s32 w, s32 h) mutable {
 
-            if (!tableData.empty()) {
-                u64 currentTick = armGetSystemTick();
-                u64 currentFreq = armGetSystemTickFreq();
-                u64 ticksForOneSecond = currentFreq;
+            if (usingPlaceholders) {
+                u64 currentNS = armTicksToNs(armGetSystemTick());
                 
-                if ((currentTick - *lastUpdateTick) >= ticksForOneSecond) {  // Fix: use the correct variable
+                if ((currentNS - *lastUpdateNS) >= ONE_SECOND_NS) {
                     buildTableDrawerLines(
                         tableData, sectionLines, infoLines, packagePath,
                         columnOffset, startGap, newlineGap,
                         wrappingMode, alignment, useWrappedTextIndent,
                         cacheExpSec, cacheExpInfo, cacheYOff, cacheXOff
                     );
-                    *lastUpdateTick = currentTick;
+                    *lastUpdateNS = currentNS;
                 }
             }
 
-            // ULTRA-FAST: Minimal branching, maximum cache efficiency
+            // Minimal branching, maximum cache efficiency
             if (useHeaderIndent) {
                 renderer->drawRect(x-2, y+2, 4, 22, renderer->a(tsl::headerSeparatorColor));
             }
 
-            // ULTRA-FAST: Pre-calculate everything, optimize for CPU pipeline
+            // Pre-calculate everything, optimize for CPU pipeline
             const bool sameCol = (tableInfoTextColor == tableInfoTextHighlightColor);
             const size_t count = cacheExpSec.size();
             
@@ -1410,7 +1430,7 @@ void addTable(
     const std::string&                     packagePath,
     const size_t&                          columnOffset                = 163,
     const size_t&                          tableStartGap               = 19,
-    const size_t&                          tableEndGap                 = 12,
+    const size_t&                          tableEndGap                 = 10,
     const size_t&                          tableSpacing                = 0,
     const std::string&                     tableSectionTextColor       = DEFAULT_STR,
     const std::string&                     tableInfoTextColor          = DEFAULT_STR,
@@ -1418,7 +1438,8 @@ void addTable(
     const std::string&                     tableAlignment              = RIGHT_STR,
     const bool&                            hideTableBackground         = false,
     const bool&                            useHeaderIndent             = false,
-    const bool&                            isScrollable                = false,
+    const bool&                            isPolling                   = false,
+    const bool&                            isScrollable                = true,
     const std::string&                     wrappingMode                = "none",
     const bool&                            useWrappedTextIndent        = false
 ) {
@@ -1429,7 +1450,7 @@ void addTable(
         columnOffset, tableStartGap, tableEndGap, tableSpacing,
         tableSectionTextColor, tableInfoTextColor, tableInfoTextHighlightColor,
         tableAlignment, hideTableBackground, useHeaderIndent,
-        isScrollable, wrappingMode, useWrappedTextIndent,
+        isPolling, isScrollable, wrappingMode, useWrappedTextIndent,
         packagePath
     );
 }
@@ -1460,7 +1481,7 @@ void addHelpInfo(std::unique_ptr<tsl::elm::List>& list) {
     std::vector<std::vector<std::string>> dummyTableData;
 
     // Draw the table with the defined lines
-    drawTable(list, dummyTableData, sectionLines, infoLines, xOffset, 19, 12, 4);
+    drawTable(list, dummyTableData, sectionLines, infoLines, xOffset, 19, 10, 4);
     //drawTable(list, sectionLines, infoLines, xOffset, 19, 12, 4, DEFAULT_STR, DEFAULT_STR, LEFT_STR, false, false, true, "none", false);
 }
 
@@ -1543,7 +1564,7 @@ void addPackageInfo(std::unique_ptr<tsl::elm::List>& list, auto& packageHeader, 
 
     // Drawing the table with section lines and info lines
     //drawTable(list, sectionLines, infoLines, xOffset, 20, 12, 3);
-    drawTable(list, dummyTableData, sectionLines, infoLines, xOffset, 19, 12, 3, DEFAULT_STR, DEFAULT_STR, DEFAULT_STR, LEFT_STR, false, false, true);
+    drawTable(list, dummyTableData, sectionLines, infoLines, xOffset, 19, 10, 3, DEFAULT_STR, DEFAULT_STR, DEFAULT_STR, LEFT_STR, false, false, true);
 }
 
 
@@ -1670,9 +1691,10 @@ bool isDangerousCombination(const std::string& originalPath) {
     // 6) Handle restrictedWildcardFolders:
     //    Wildcards allowed *inside* these folders,
     //    but disallow targeting the folder itself or broad "*" at root of that folder.
+    std::string relative;
     for (const auto& folder : restrictedWildcardFolders) {
         if (patternPath.compare(0, std::strlen(folder), folder) == 0) {
-            std::string relative = patternPath.substr(std::strlen(folder));
+            relative = patternPath.substr(std::strlen(folder));
 
             // If relative is empty or just '*', it means "the whole folder" or "all files"
             if (relative.empty() || relative == "*" || relative == "*/") {
@@ -1684,10 +1706,12 @@ bool isDangerousCombination(const std::string& originalPath) {
         }
     }
 
+    bool isAlbum;
+
     // 7) Block wildcard usage in protectedFolders, except albumFolders
     for (const auto& folder : protectedFolders) {
         if (patternPath.compare(0, std::strlen(folder), folder) == 0) {
-            bool isAlbum = false;
+            isAlbum = false;
             for (const auto& albumFolder : albumFolders) {
                 if (patternPath.compare(0, std::strlen(albumFolder), albumFolder) == 0) {
                     isAlbum = true;
@@ -1698,7 +1722,7 @@ bool isDangerousCombination(const std::string& originalPath) {
                 return false; // wildcards allowed in album folders
             }
 
-            std::string relative = patternPath.substr(std::strlen(folder));
+            relative = patternPath.substr(std::strlen(folder));
             for (const auto& pat : wildcardPatterns) {
                 if (relative.find(pat) != std::string::npos) {
                     return true; // wildcard in protected folder disallowed
@@ -1787,60 +1811,76 @@ inline void applyPlaceholderReplacement(std::string& input, const std::string& p
 
 
 void applyReplaceIniPlaceholder(std::string& arg, const std::string& commandName, const std::string& iniPath) {
-
     const std::string searchString = "{" + commandName + "(";
-    size_t startPos = arg.find(searchString);
-    if (startPos == std::string::npos) {
-        return;
-    }
-
-    size_t endPos = arg.find(")}", startPos);
-    if (endPos == std::string::npos || endPos <= startPos) {
-        return;
-    }
-
-    //std::string replacement = arg;  // Copy arg because we need to modify it
-
-    std::string placeholderContent = arg.substr(startPos + searchString.length(), endPos - startPos - searchString.length());
-    trim(placeholderContent);
-
-    size_t commaPos = placeholderContent.find(',');
-    if (commaPos != std::string::npos) {
-        std::string iniSection = placeholderContent.substr(0, commaPos);
-        trim(iniSection);
-        removeQuotes(iniSection);
-        std::string iniKey = placeholderContent.substr(commaPos + 1);
-        trim(iniKey);
-        removeQuotes(iniKey);
-
-        std::string parsedResult = parseValueFromIniSection(iniPath, iniSection, iniKey);
-        // Replace the placeholder with the parsed result and keep the remaining string intact
-        arg = arg.substr(0, startPos) + parsedResult + arg.substr(endPos + 2);
-    } else {
-        // Check if the content is an integer
-        if (std::all_of(placeholderContent.begin(), placeholderContent.end(), ::isdigit)) {
-            size_t entryIndex = ult::stoi(placeholderContent);
-
-            // Return list of section names and use entryIndex to get the specific entry
-            std::vector<std::string> sectionNames = parseSectionsFromIni(iniPath);
-            if (entryIndex < sectionNames.size()) {
-                std::string sectionName = sectionNames[entryIndex];
-                arg = arg.substr(0, startPos) + sectionName + arg.substr(endPos + 2);
-            } else {
-                // Handle the case where entryIndex is out of range
-                arg = arg.substr(0, startPos) + NULL_STR + arg.substr(endPos + 2);
-            }
-        } else {
-            // Handle the case where the placeholder content is not a valid index
-            arg = arg.substr(0, startPos) + NULL_STR + arg.substr(endPos + 2);
+    
+    // Pre-declare variables outside the loop
+    size_t startPos = 0;
+    size_t endPos;
+    size_t commaPos;
+    size_t entryIndex;
+    std::string placeholderContent;
+    std::string replacement;
+    std::string iniSection;
+    std::string iniKey;
+    
+    // Cache section names to avoid re-parsing INI file multiple times
+    std::vector<std::string> sectionNames;
+    bool sectionsLoaded = false;
+    
+    // Process all occurrences of the placeholder
+    while ((startPos = arg.find(searchString, startPos)) != std::string::npos) {
+        endPos = arg.find(")}", startPos);
+        if (endPos == std::string::npos || endPos <= startPos) {
+            // Invalid placeholder, skip this occurrence
+            startPos += searchString.length();
+            continue;
         }
+        
+        placeholderContent = arg.substr(startPos + searchString.length(), 
+                                       endPos - startPos - searchString.length());
+        trim(placeholderContent);
+        
+        commaPos = placeholderContent.find(',');
+        
+        if (commaPos != std::string::npos) {
+            // Handle section,key format
+            iniSection = placeholderContent.substr(0, commaPos);
+            trim(iniSection);
+            removeQuotes(iniSection);
+            
+            iniKey = placeholderContent.substr(commaPos + 1);
+            trim(iniKey);
+            removeQuotes(iniKey);
+            
+            replacement = parseValueFromIniSection(iniPath, iniSection, iniKey);
+        } else {
+            // Check if the content is an integer
+            if (std::all_of(placeholderContent.begin(), placeholderContent.end(), ::isdigit)) {
+                entryIndex = ult::stoi(placeholderContent);
+                
+                // Load section names only once when needed
+                if (!sectionsLoaded) {
+                    sectionNames = parseSectionsFromIni(iniPath);
+                    sectionsLoaded = true;
+                }
+                
+                if (entryIndex < sectionNames.size()) {
+                    replacement = sectionNames[entryIndex];
+                } else {
+                    replacement = NULL_STR;
+                }
+            } else {
+                replacement = NULL_STR;
+            }
+        }
+        
+        // Replace the placeholder with the result
+        arg = arg.substr(0, startPos) + replacement + arg.substr(endPos + 2);
+        
+        // Update startPos to continue searching after the replacement
+        startPos += replacement.length();
     }
-
-
-
-    //return replacement;
 }
-
 
 
 /**
@@ -1932,14 +1972,18 @@ void replaceAllPlaceholders(std::string& source, const std::string& placeholder,
 
 
 // Helper function to replace all placeholders in a single pass
-void replacePlaceholdersInArg(std::string& source, const std::unordered_map<std::string, std::string>& replacements) {
+bool replacePlaceholdersInArg(std::string& source, const std::unordered_map<std::string, std::string>& replacements) {
+    bool replaced = false;
+    size_t pos;
     for (const auto& [placeholder, replacement] : replacements) {
-        size_t pos = 0;
+        pos = 0;
         while ((pos = source.find(placeholder, pos)) != std::string::npos) {
             source.replace(pos, placeholder.length(), replacement);
             pos += replacement.length();  // Move past the replacement to avoid infinite loop
+            replaced = true;
         }
     }
+    return replaced;
 }
 
 
@@ -2054,19 +2098,12 @@ std::vector<std::vector<std::string>> getSourceReplacement(const std::vector<std
                     }
                 }
 
-                // {ini_file_source(...)} block
+                // {ini_file_source(...)} block - FIXED
                 if (modifiedArg.find("{ini_file_source(") != std::string::npos) {
                     applyPlaceholderReplacement(modifiedArg, "*", ult::to_string(entryIndex));
-                    startPos = modifiedArg.find("{ini_file_source(");
-                    endPos   = modifiedArg.find(")}");
-                    if (endPos != std::string::npos && endPos > startPos) {
-                        // applyReplaceIniPlaceholder modifies modifiedArg in place
-                        applyReplaceIniPlaceholder(modifiedArg, "ini_file_source", iniPath);
-                        // now modifiedArg itself may be empty, so:
-                        std::string raw = modifiedArg;
-                        replacement = returnOrNull(raw);
-                        modifiedArg.replace(startPos, endPos - startPos + 2, replacement);
-                    }
+                    // applyReplaceIniPlaceholder modifies modifiedArg in place, so we just call it
+                    applyReplaceIniPlaceholder(modifiedArg, "ini_file_source", iniPath);
+                    // No additional replacement needed!
                 }
 
                 // {json_source(...)} block
@@ -2119,54 +2156,49 @@ std::vector<std::vector<std::string>> getSourceReplacement(const std::vector<std
 
 
 std::string getCurrentTimestamp(const std::string& format) {
-    auto now = std::chrono::system_clock::now();
-    auto now_time_t = std::chrono::system_clock::to_time_t(now);
-    auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
-
-    // Prepare a format for strftime without unsupported tokens
+    // Try using standard POSIX time() function
+    time_t seconds = time(nullptr);
+    u32 milliseconds = 0; // We lose millisecond precision with this method
+    
+    // If you need milliseconds, try to get them from system tick
+    u64 tick_ns = armTicksToNs(armGetSystemTick());
+    milliseconds = (tick_ns / 1000000ULL) % 1000;
+    
     std::string modifiedFormat = format;
     bool hasMilliseconds = false;
-
-    // Remove %f from the format string temporarily, if present
+    
     size_t pos = modifiedFormat.find("%f");
     if (pos != std::string::npos) {
-        modifiedFormat.erase(pos, 2); // Remove "%f"
+        modifiedFormat.erase(pos, 2);
         hasMilliseconds = true;
     }
-
-    // Format using strftime up to seconds
+    
     char buffer[30];
-    if (!std::strftime(buffer, sizeof(buffer), modifiedFormat.c_str(), std::localtime(&now_time_t))) {
-        return ""; // Handle error if needed
+    if (!std::strftime(buffer, sizeof(buffer), modifiedFormat.c_str(), std::localtime(&seconds))) {
+        return "";
     }
-
+    
     std::string formattedTime(buffer);
     StringStream oss;
-
-    // Handle %s for seconds since epoch
+    
     if (formattedTime.find("%s") != std::string::npos) {
-        oss << static_cast<long long>(std::chrono::system_clock::to_time_t(now)); 
+        oss << static_cast<long long>(seconds); 
         formattedTime.replace(formattedTime.find("%s"), 2, oss.str());
-        oss.clear(); // Clear the StringStream for the next usage
+        oss.clear();
     }
-
-    // Handle %f for milliseconds, if it was in the original format
+    
     if (hasMilliseconds) {
-        std::string millisecondsStr = ult::to_string(milliseconds.count());
-
-        // Pad milliseconds to three digits if necessary
+        std::string millisecondsStr = ult::to_string(milliseconds);
         if (millisecondsStr.length() < 3) {
             millisecondsStr.insert(0, 3 - millisecondsStr.length(), '0');
         }
-
-        // Check if the format string included '.' right before %f
         if (pos > 0 && format[pos - 1] == '.') {
-            formattedTime += millisecondsStr;  // Just add milliseconds without an extra period
+            formattedTime += millisecondsStr;
         } else {
-            formattedTime += "." + millisecondsStr;  // Add period before milliseconds if not already present
+            formattedTime += "." + millisecondsStr;
         }
     }
-
+    
     return formattedTime;
 }
 
@@ -2241,14 +2273,16 @@ double parseExpression(const std::string& expression, size_t& pos, bool& valid) 
     double result = parseNumber(expression, pos, valid);
     if (!valid) return 0;
 
+    char op;
+    double operand;
     while (pos < expression.length()) {
         skipSpaces(expression, pos);
         if (pos >= expression.length()) break;
 
-        char op = expression[pos++];
+        op = expression[pos++];
         skipSpaces(expression, pos);
 
-        double operand = parseNumber(expression, pos, valid);
+        operand = parseNumber(expression, pos, valid);
         if (!valid) return 0;
 
         switch (op) {
@@ -2313,9 +2347,10 @@ std::string handleMath(const std::string& placeholder) {
         mathExpression = mathExpression.substr(0, commaPos);
     }
 
+    size_t pos;
     // Add spaces around operators to ensure proper parsing
     for (char op : {'+', '-', '*', '/'}) {
-        size_t pos = 0;
+        pos = 0;
         while ((pos = mathExpression.find(op, pos)) != std::string::npos) {
             if (pos > 0 && mathExpression[pos - 1] != ' ') {
                 mathExpression.insert(pos, " ");
@@ -2415,18 +2450,23 @@ std::string handleLength(const std::string& placeholder) {
 //    }
 //};
 
-void replacePlaceholdersRecursively(std::string& arg, const std::vector<std::pair<std::string, std::function<std::string(const std::string&)>>>& placeholders) {
+bool replacePlaceholdersRecursively(std::string& arg, const std::vector<std::pair<std::string, std::function<std::string(const std::string&)>>>& placeholders) {
+    bool anyReplacementsMade = false;
     std::string lastArg;
-    
+    std::string placeholderContent;
+    std::string replacement;
+
+    size_t startPos, endPos;
+    size_t nestedStartPos, nextStartPos, nextEndPos;
+
     // Continue replacing until no more placeholders are found
     bool placeholdersRemaining = true;
     while (placeholdersRemaining) {
         placeholdersRemaining = false; // Reset the flag at the beginning of each loop
         
         for (const auto& [placeholder, replacer] : placeholders) {
-            size_t startPos, endPos;
-            size_t nestedStartPos, nextStartPos, nextEndPos;
-
+            //size_t startPos, endPos;
+            //size_t nestedStartPos, nextStartPos, nextEndPos;
             while ((startPos = arg.find(placeholder)) != std::string::npos) {
                 nestedStartPos = startPos;
                 while (true) {
@@ -2439,35 +2479,33 @@ void replacePlaceholdersRecursively(std::string& arg, const std::vector<std::pai
                         break;
                     }
                 }
-
                 if (endPos == std::string::npos || endPos <= startPos) break;
-
-                std::string placeholderContent = arg.substr(startPos, endPos - startPos + 2);
-                std::string replacement = replacer(placeholderContent);
-
+                placeholderContent = arg.substr(startPos, endPos - startPos + 2);
+                replacement = replacer(placeholderContent);
                 if (replacement.empty()) {
                     replacement = NULL_STR;
                 }
-
                 arg.replace(startPos, endPos - startPos + 2, replacement);
                 placeholdersRemaining = true; // Since we replaced something, we continue processing
-
+                anyReplacementsMade = true; // Track that we made a replacement
                 // To prevent infinite loops, if no change is made, break
                 if (arg == lastArg) {
                     arg.replace(startPos, endPos - startPos + 2, NULL_STR);
                     break;
                 }
-
                 lastArg = arg;
             }
         }
     }
+    return anyReplacementsMade;
 }
 
 
 
 
-void applyPlaceholderReplacements(std::vector<std::string>& cmd, const std::string& hexPath, const std::string& iniPath, const std::string& listString, const std::string& listPath, const std::string& jsonString, const std::string& jsonPath) {
+bool applyPlaceholderReplacements(std::vector<std::string>& cmd, const std::string& hexPath, const std::string& iniPath, const std::string& listString, const std::string& listPath, const std::string& jsonString, const std::string& jsonPath) {
+    bool replacementsMade = false;
+    
     std::vector<std::pair<std::string, std::function<std::string(const std::string&)>>> placeholders = {
         {"{hex_file(", [&](const std::string& placeholder) { return returnOrNull(replaceHexPlaceholder(placeholder, hexPath)); }},
         {"{ini_file(", [&](const std::string& placeholder) { 
@@ -2501,7 +2539,6 @@ void applyPlaceholderReplacements(std::vector<std::string>& cmd, const std::stri
             size_t endPos = placeholder.find(")");
             std::string params = placeholder.substr(startPos, endPos - startPos);
         
-            // Split params by comma
             size_t commaPos = params.find(",");
             std::string decimalValue;
             std::string order;
@@ -2509,21 +2546,17 @@ void applyPlaceholderReplacements(std::vector<std::string>& cmd, const std::stri
             if (commaPos != std::string::npos) {
                 decimalValue = params.substr(0, commaPos);
                 order = params.substr(commaPos + 1);
-                // Trim whitespace from order
                 order.erase(0, order.find_first_not_of(" \t\n\r"));
                 order.erase(order.find_last_not_of(" \t\n\r") + 1);
             } else {
                 decimalValue = params;
-                order = "";  // optional param is empty
+                order = "";
             }
-        
-            // You can now call decimalToHex with decimalValue and order
-            // Adjust decimalToHex function accordingly or handle order here
         
             if (order.empty()) {
                 return returnOrNull(decimalToHex(decimalValue));
             } else {
-                return returnOrNull(decimalToHex(decimalValue, std::stoi(order))); // assuming overload or second param version
+                return returnOrNull(decimalToHex(decimalValue, std::stoi(order)));
             }
         }},
         {"{ascii_to_hex(", [&](const std::string& placeholder) {
@@ -2545,7 +2578,6 @@ void applyPlaceholderReplacements(std::vector<std::string>& cmd, const std::stri
             return returnOrNull(hexToDecimal(hexValue));
         }},
         {"{random(", [&](const std::string& placeholder) {
-            // Ensure the random seed is initialized
             std::srand(std::time(0));
             
             size_t startPos = placeholder.find('(') + 1;
@@ -2556,11 +2588,8 @@ void applyPlaceholderReplacements(std::vector<std::string>& cmd, const std::stri
             if (commaPos != std::string::npos) {
                 int lowValue = ult::stoi(parameters.substr(0, commaPos));
                 int highValue = ult::stoi(parameters.substr(commaPos + 1));
-                
-                // Generate a random number in the range [lowValue, highValue]
                 int randomValue = lowValue + rand() % (highValue - lowValue + 1);
-                
-                return returnOrNull(ult::to_string(randomValue));  // Return the random value as a string
+                return returnOrNull(ult::to_string(randomValue));
             }
             return returnOrNull(placeholder);
         }},
@@ -2583,7 +2612,7 @@ void applyPlaceholderReplacements(std::vector<std::string>& cmd, const std::stri
             std::string endIndex   = parameters.substr(secondComma + 1);
         
             trim(strPart);
-            removeQuotes(strPart); // << WARNING: this might be removing your entire string
+            removeQuotes(strPart);
             trim(startIndex);
             removeQuotes(startIndex);
             trim(endIndex);
@@ -2599,10 +2628,9 @@ void applyPlaceholderReplacements(std::vector<std::string>& cmd, const std::stri
             size_t sliceEnd   = static_cast<size_t>(ult::stoi(endIndex));
         
             if (sliceEnd <= sliceStart || sliceStart >= strPart.length()) {
-                return returnOrNull(placeholder); // or maybe return "" if you'd prefer that fallback
+                return returnOrNull(placeholder);
             }
         
-            // Final slice
             std::string result = sliceString(strPart, sliceStart, sliceEnd);
             return returnOrNull(result);
         }},
@@ -2649,12 +2677,6 @@ void applyPlaceholderReplacements(std::vector<std::string>& cmd, const std::stri
         {"{length(", [&](const std::string& placeholder) { return returnOrNull(handleLength(placeholder)); }},
     };
 
-     // Second pass: Only replace {math(...)} after other placeholders are evaluated
-    //std::vector<std::pair<std::string, std::function<std::string(const std::string&)>>> secondPassPlaceholders = {
-    //    {"{math(", [&](const std::string& placeholder) { return handleMath(placeholder); }}
-    //};   
-
-    // Create a map with all non-button/arrow placeholders and their replacements
     std::unordered_map<std::string, std::string> generalPlaceholders = {
         {"{ram_vendor}", memoryVendor},
         {"{ram_model}", memoryModel},
@@ -2669,23 +2691,32 @@ void applyPlaceholderReplacements(std::vector<std::string>& cmd, const std::stri
         {"{title_id}", getTitleIdAsString()}
     };
 
-    // Iterate through each command and replace placeholders in one pass
+    // Iterate through each command and replace placeholders
     for (auto& arg : cmd) {
-        // Replace general placeholders
-        replacePlaceholdersInArg(arg, generalPlaceholders);
+        //std::string originalArg = arg; // Store original to compare later
+        
+        // Replace general placeholders - modify these functions to return bool
+        if (replacePlaceholdersInArg(arg, generalPlaceholders)) {
+            replacementsMade = true;
+        }
 
         // Replace button/arrow placeholders from the global map
-        replacePlaceholdersInArg(arg, symbolPlaceholders);
+        if (replacePlaceholdersInArg(arg, symbolPlaceholders)) {
+            replacementsMade = true;
+        }
 
-        // Additionally replace placeholders from your custom map
-        //for (const auto& [placeholder, replacer] : placeholders) {
-        //    replacePlaceholders(arg, placeholder, replacer);
-        //}
-
-        // Resolve nested placeholders
-        replacePlaceholdersRecursively(arg, placeholders);
-        //replacePlaceholdersRecursively(arg, secondPassPlaceholders);
+        // Resolve nested placeholders - modify this function to return bool
+        if (replacePlaceholdersRecursively(arg, placeholders)) {
+            replacementsMade = true;
+        }
+        
+        // Alternative: Simple string comparison if you can't modify the helper functions
+        // if (arg != originalArg) {
+        //     replacementsMade = true;
+        // }
     }
+    
+    return replacementsMade;
 }
 
 
@@ -2714,6 +2745,8 @@ bool applyPlaceholderReplacementsToCommands(std::vector<std::vector<std::string>
     bool inEristaSection = false;
     bool inMarikoSection = false;
     bool eraseAtEnd = false;
+
+    size_t cmdSize;
 
     // Process commands with control flow and apply replacements
     for (auto it = commands.begin(); it != commands.end();) {
@@ -2755,7 +2788,7 @@ bool applyPlaceholderReplacementsToCommands(std::vector<std::vector<std::string>
         applyPlaceholderReplacements(cmd, hexPath, iniPath, listString, listPath, jsonString, jsonPath);
 
         // Handle special commands like LIST_STR, LIST_FILE_STR, etc.
-        size_t cmdSize = cmd.size();
+        cmdSize = cmd.size();
 
         if (commandName == LIST_STR && cmdSize >= 2) {
             listString = std::string(cmd[1]);  // Make a copy of cmd[1] into listString
@@ -2786,7 +2819,7 @@ bool applyPlaceholderReplacementsToCommands(std::vector<std::vector<std::string>
             eraseAtEnd = false;
         }
 
-        logMessage("iniPath: "+iniPath);
+        //logMessage("iniPath: "+iniPath);
 
         // Now, handle adding quotes only if needed
         for (size_t i = 1; i < cmd.size(); ++i) {
@@ -3715,9 +3748,9 @@ void processCommand(const std::vector<std::string>& cmd, const std::string& pack
     //    }
     //
     } else if (commandName == "refresh") {
-        if (cmd.size() == 1)
+        if (cmd.size() == 1) {
             refreshPage = true;
-        else if (cmd.size() > 1) {
+        } else if (cmd.size() > 1) {
             std::string refreshPattern = cmd[1];
             removeQuotes(refreshPattern);
             if (refreshPattern == "theme")
@@ -3726,7 +3759,37 @@ void processCommand(const std::vector<std::string>& cmd, const std::string& pack
                 refreshPackage = true;
             else if (refreshPattern == "wallpaper") {
                 reloadWallpaper();
+            //} else {
+            //    std::string refreshPattern2 = "";
+            //    if (cmd.size() > 2) {
+            //        refreshPattern2 = cmd[2];
+            //    }
+            //    jumpItemName = refreshPattern;
+            //    jumpItemValue = refreshPattern2;
+            //    refreshPage = true;
             }
+        }
+    } else if (commandName == "refresh-to") {
+        if (cmd.size() > 1) {
+            std::string refreshPattern = cmd[1];
+            removeQuotes(refreshPattern);
+            std::string refreshPattern2 = "";
+            std::string refreshPattern3 = "";
+            
+            if (cmd.size() > 2) {
+                refreshPattern2 = cmd[2];
+                removeQuotes(refreshPattern2);
+            }
+            
+            if (cmd.size() > 3) {
+                refreshPattern3 = cmd[3];
+                removeQuotes(refreshPattern3);
+            }
+            
+            jumpItemName = refreshPattern;
+            jumpItemValue = refreshPattern2;
+            jumpItemExactMatch = !(refreshPattern3 == FALSE_STR);
+            refreshPage = true;
         }
     } else if (commandName == "logging") {
         interpreterLogging = true;
